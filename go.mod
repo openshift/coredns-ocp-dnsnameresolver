@@ -1,6 +1,6 @@
 module github.com/openshift/coredns-ocp-dnsnameresolver
 
-go 1.21.0
+go 1.20
 
 require (
 	github.com/coredns/caddy v1.1.1
