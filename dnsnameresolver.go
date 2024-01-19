@@ -53,10 +53,6 @@ func New() *OCPDNSNameResolver {
 	}
 }
 
-type dnsInfo struct {
-	name string
-}
-
 const (
 	// defaultResyncPeriod gives the resync period used for creating the DNSNameResolver informer.
 	defaultResyncPeriod = 24 * time.Hour

@@ -79,7 +79,7 @@ func resolverParse(c *caddy.Controller) (*OCPDNSNameResolver, error) {
 					return nil, err
 				}
 				if minTTL <= 0 {
-					return nil, fmt.Errorf("Value of minTTL should be greater than 0: %s", args[0])
+					return nil, fmt.Errorf("value of minTTL should be greater than 0: %s", args[0])
 				}
 				resolver.minimumTTL = int32(minTTL)
 			case "failureThreshold":
@@ -92,7 +92,7 @@ func resolverParse(c *caddy.Controller) (*OCPDNSNameResolver, error) {
 					return nil, err
 				}
 				if failureThreshold <= 0 {
-					return nil, fmt.Errorf("Value of failureThreshold should be greater than 0: %s", args[0])
+					return nil, fmt.Errorf("value of failureThreshold should be greater than 0: %s", args[0])
 				}
 				resolver.failureThreshold = int32(failureThreshold)
 			default:
