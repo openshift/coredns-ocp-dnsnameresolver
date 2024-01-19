@@ -11,8 +11,7 @@ import (
 // isWildcard checks if the domain name is wildcard. The input should
 // be a valid fqdn.
 func isWildcard(dnsName string) bool {
-	trimmedString := strings.TrimPrefix(dnsName, "*")
-	return trimmedString != dnsName
+	return strings.HasPrefix(dnsName, "*.")
 }
 
 // getWildcard converts a regular DNS name to a wildcard DNS name. The

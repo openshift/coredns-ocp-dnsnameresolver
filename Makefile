@@ -1,20 +1,15 @@
 .PHONY: all
 all: build-coredns
 
-GO_TEST_FLAGS = $(VERBOSE)
+GO_TEST_FLAGS ?= -v
 
-.PHONY: fmt
-fmt: ## Run go fmt against code
-	go fmt -mod=mod *.go
-	git diff --exit-code
-
-.PHONY: vet
-vet: ## Run go vet against code
-	go vet *.go
+.PHONY: verify
+verify: ## Run go verify against code
+	hack/verify-gofmt.sh
 
 .PHONY: test
 test: ## Run go test against code
-	go test -mod=mod -v $(GO_TEST_FLAGS) ./
+	go test -mod=mod $(GO_TEST_FLAGS) ./
 
 .PHONY: build-coredns
 build-coredns: ## Build coredns using the local branch of coredns-ocp-dnsnameresolver
@@ -24,6 +19,9 @@ build-coredns: ## Build coredns using the local branch of coredns-ocp-dnsnameres
 clean:
 	go clean
 	rm -f coredns
+
+CONTAINER_ENGINE ?= podman
+CONTAINER_IMAGE ?= coredns
 
 .PHONY: local-image
 local-image:

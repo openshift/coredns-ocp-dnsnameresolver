@@ -2,6 +2,8 @@
 
 set -euxo pipefail
 
+PLUGIN_PATH=$(readlink -f "$(dirname "$0")/..")
+
 # Create a temporary directory for cloning openshift/coredns repo.
 # The directory will be deleted after the execution of script.
 BASE_PATH=$(mktemp -d)
@@ -16,14 +18,13 @@ then
     git clone https://github.com/openshift/coredns
 fi
 
-cd $CURRENT_DIR
 # Add the "ocp_dnsnameresolver" plugin to the cloned openshift/coredns repo.
-GO111MODULE=on GOFLAGS=-mod=mod $CURRENT_DIR/hack/add-plugin.sh $BASE_PATH/coredns
+GOFLAGS=-mod=mod $CURRENT_DIR/hack/add-plugin.sh $BASE_PATH/coredns $PLUGIN_PATH
 
 cd $BASE_PATH/coredns
 
 # Build the coredns executable.
-GO111MODULE=on GOFLAGS=-mod=vendor go build -o coredns .
+GOFLAGS=-mod=vendor go build -o coredns .
 
 # Copy it to the local directory.
 cp coredns $CURRENT_DIR
