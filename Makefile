@@ -27,7 +27,7 @@ CONTAINER_IMAGE ?= coredns
 local-image:
 ifndef CONTAINER_IMAGE
 	echo "  Please pass a container image ... "
-else ifeq ($(CONTAINER_ENGINE), USE_BUILDAH)
+else ifeq ($(CONTAINER_ENGINE), buildah)
 	echo "  - Building with buildah ... "
 	buildah bud -t $(CONTAINER_IMAGE) .
 else ifeq ($(CONTAINER_ENGINE), docker)
