@@ -99,6 +99,13 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 				// object to the wildcardDNSInfo map.
 				resolver.wildcardMapLock.Lock()
 				dnsInfoMap, exists := resolver.wildcardDNSInfo[dnsName]
+				// If details of DNS name and the DNSNameResolver objects already exist
+				// then check if the existing information match with the current one.
+				// Otherwise, don't proceed.
+				if exists && dnsInfoMap[resolverObj.Namespace] != resolverObj.Name {
+					resolver.wildcardMapLock.Unlock()
+					return
+				}
 				if !exists {
 					dnsInfoMap = make(namespaceDNSInfo)
 				}
@@ -110,6 +117,13 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 				// object to the regularDNSInfo map.
 				resolver.regularMapLock.Lock()
 				dnsInfoMap, exists := resolver.regularDNSInfo[dnsName]
+				// If details of DNS name and the DNSNameResolver objects already exist
+				// then check if the existing information match with the current one.
+				// Otherwise, don't proceed.
+				if exists && dnsInfoMap[resolverObj.Namespace] != resolverObj.Name {
+					resolver.regularMapLock.Unlock()
+					return
+				}
 				if !exists {
 					dnsInfoMap = make(namespaceDNSInfo)
 				}
@@ -144,6 +158,13 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 				// object from the wildcardDNSInfo map.
 				resolver.wildcardMapLock.Lock()
 				if dnsInfoMap, exists := resolver.wildcardDNSInfo[dnsName]; exists {
+					// If details of DNS name and the DNSNameResolver objects already exist
+					// then check if the existing information match with the current one.
+					// Otherwise, don't proceed.
+					if dnsInfoMap[resolverObj.Namespace] != resolverObj.Name {
+						resolver.wildcardMapLock.Unlock()
+						return
+					}
 					delete(dnsInfoMap, resolverObj.Namespace)
 					if len(dnsInfoMap) > 0 {
 						resolver.wildcardDNSInfo[dnsName] = dnsInfoMap
@@ -157,6 +178,13 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 				// object from the regularDNSInfo map.
 				resolver.regularMapLock.Lock()
 				if dnsInfoMap, exists := resolver.regularDNSInfo[dnsName]; exists {
+					// If details of DNS name and the DNSNameResolver objects already exist
+					// then check if the existing information match with the current one.
+					// Otherwise, don't proceed.
+					if dnsInfoMap[resolverObj.Namespace] != resolverObj.Name {
+						resolver.regularMapLock.Unlock()
+						return
+					}
 					delete(dnsInfoMap, resolverObj.Namespace)
 					if len(dnsInfoMap) > 0 {
 						resolver.regularDNSInfo[dnsName] = dnsInfoMap
