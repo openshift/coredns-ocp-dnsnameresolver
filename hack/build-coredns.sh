@@ -10,11 +10,8 @@ BASE_PATH=$(mktemp -d)
 trap 'chmod -R u+w "${BASE_PATH}"; rm -rf "${BASE_PATH}"' EXIT
 
 cd "${BASE_PATH}"
-# Clone openshift/coredns repo if not already cloned.
-if [ ! -d coredns ]
-then
-    git clone https://github.com/openshift/coredns
-fi
+# Clone openshift/coredns repo.
+git clone https://github.com/openshift/coredns
 
 # Add the "ocp_dnsnameresolver" plugin to the cloned openshift/coredns repo.
 "${PLUGIN_PATH}"/hack/add-plugin.sh "${BASE_PATH}"/coredns "${PLUGIN_PATH}"
@@ -22,7 +19,7 @@ fi
 cd "${BASE_PATH}"/coredns
 
 # Build the coredns executable.
-GOFLAGS=-mod=vendor go build -o coredns .
+go build -o coredns .
 
 # Copy it to the local directory.
 cp coredns "${PLUGIN_PATH}"
