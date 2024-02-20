@@ -7,14 +7,18 @@ import (
 
 	"github.com/coredns/coredns/plugin"
 
-	dnsv1alpha1 "github.com/openshift/api/network/v1alpha1"
-	networkclient "github.com/openshift/client-go/network/clientset/versioned"
-	networkclientv1alpha1 "github.com/openshift/client-go/network/clientset/versioned/typed/network/v1alpha1"
-	networkinformer "github.com/openshift/client-go/network/informers/externalversions"
+	ocpnetworkapiv1alpha1 "github.com/openshift/api/network/v1alpha1"
+	ocpnetworkclient "github.com/openshift/client-go/network/clientset/versioned"
+	ocpnetworkclientv1alpha1 "github.com/openshift/client-go/network/clientset/versioned/typed/network/v1alpha1"
+	ocpnetworkinformer "github.com/openshift/client-go/network/informers/externalversions"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
 
+// namespaceDNSInfo is used to store information regarding a particular DNS name.
+// The map stores the namespaces where a DNSNameResolver object corresponding to
+// the DNS name is created.
+// key: namespace, value: object name.
 type namespaceDNSInfo map[string]string
 
 // OCPDNSNameResolver is a plugin that looks up responses from other plugins
@@ -28,14 +32,17 @@ type OCPDNSNameResolver struct {
 	failureThreshold int32
 
 	// maps for storing regular and wildcard DNS name info.
-	// data mapping: DNS name --> Namespace --> DNSNameResolver object name
+	// data mapping: DNS name --> Namespace --> DNSNameResolver object name.
+	// key: DNS name, value: namespaceDNSInfo map containing information
+	// about the namespaces where a DNSNameResolver object corresponding to
+	// the DNS name is created.
 	regularDNSInfo  map[string]namespaceDNSInfo
 	wildcardDNSInfo map[string]namespaceDNSInfo
 	regularMapLock  sync.Mutex
 	wildcardMapLock sync.Mutex
 
 	// client and informer for handling DNSNameResolver objects.
-	dnsNameResolverClient   networkclientv1alpha1.NetworkV1alpha1Interface
+	ocpNetworkClient        ocpnetworkclientv1alpha1.NetworkV1alpha1Interface
 	dnsNameResolverInformer cache.SharedIndexInformer
 	stopCh                  chan struct{}
 	stopLock                sync.Mutex
@@ -63,7 +70,7 @@ const (
 )
 
 // initInformer initializes the DNSNameResolver informer.
-func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkclient.Interface, error), send func(*dnsv1alpha1.DNSNameResolver)) (err error) {
+func (resolver *OCPDNSNameResolver) initInformer(createClient func() (ocpnetworkclient.Interface, error), send func(*ocpnetworkapiv1alpha1.DNSNameResolver)) (err error) {
 	// Create the network client.
 	networkClient, err := createClient()
 	if err != nil {
@@ -71,17 +78,17 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 	}
 
 	// Get the client for version v1alpha1 for DNSNameResolver objects.
-	resolver.dnsNameResolverClient = networkClient.NetworkV1alpha1()
+	resolver.ocpNetworkClient = networkClient.NetworkV1alpha1()
 
 	// Create the DNSNameResolver informer.
-	resolver.dnsNameResolverInformer = networkinformer.NewSharedInformerFactory(networkClient, defaultResyncPeriod).Network().V1alpha1().DNSNameResolvers().Informer()
+	resolver.dnsNameResolverInformer = ocpnetworkinformer.NewSharedInformerFactory(networkClient, defaultResyncPeriod).Network().V1alpha1().DNSNameResolvers().Informer()
 
 	// Add the event handlers for Add, Delete and Update events.
 	resolver.dnsNameResolverInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		// Add event.
 		AddFunc: func(obj interface{}) {
 			// Get the DNSNameResolver object.
-			resolverObj, ok := obj.(*dnsv1alpha1.DNSNameResolver)
+			resolverObj, ok := obj.(*ocpnetworkapiv1alpha1.DNSNameResolver)
 			if !ok {
 				log.Infof("object not of type DNSNameResolver: %v", obj)
 				return
@@ -140,7 +147,7 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 		// Delete event.
 		DeleteFunc: func(obj interface{}) {
 			// Get the DNSNameResolver object.
-			resolverObj, ok := obj.(*dnsv1alpha1.DNSNameResolver)
+			resolverObj, ok := obj.(*ocpnetworkapiv1alpha1.DNSNameResolver)
 			if !ok {
 				log.Infof("object not of type DNSNameResolver: %v", obj)
 				return
@@ -161,15 +168,13 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 					// If details of DNS name and the DNSNameResolver objects already exist
 					// then check if the existing information match with the current one.
 					// Otherwise, don't proceed.
-					if dnsInfoMap[resolverObj.Namespace] != resolverObj.Name {
-						resolver.wildcardMapLock.Unlock()
-						return
-					}
-					delete(dnsInfoMap, resolverObj.Namespace)
-					if len(dnsInfoMap) > 0 {
-						resolver.wildcardDNSInfo[dnsName] = dnsInfoMap
-					} else {
-						delete(resolver.wildcardDNSInfo, dnsName)
+					if dnsInfoMap[resolverObj.Namespace] == resolverObj.Name {
+						delete(dnsInfoMap, resolverObj.Namespace)
+						if len(dnsInfoMap) > 0 {
+							resolver.wildcardDNSInfo[dnsName] = dnsInfoMap
+						} else {
+							delete(resolver.wildcardDNSInfo, dnsName)
+						}
 					}
 				}
 				resolver.wildcardMapLock.Unlock()
@@ -181,15 +186,13 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 					// If details of DNS name and the DNSNameResolver objects already exist
 					// then check if the existing information match with the current one.
 					// Otherwise, don't proceed.
-					if dnsInfoMap[resolverObj.Namespace] != resolverObj.Name {
-						resolver.regularMapLock.Unlock()
-						return
-					}
-					delete(dnsInfoMap, resolverObj.Namespace)
-					if len(dnsInfoMap) > 0 {
-						resolver.regularDNSInfo[dnsName] = dnsInfoMap
-					} else {
-						delete(resolver.regularDNSInfo, dnsName)
+					if dnsInfoMap[resolverObj.Namespace] == resolverObj.Name {
+						delete(dnsInfoMap, resolverObj.Namespace)
+						if len(dnsInfoMap) > 0 {
+							resolver.regularDNSInfo[dnsName] = dnsInfoMap
+						} else {
+							delete(resolver.regularDNSInfo, dnsName)
+						}
 					}
 				}
 				resolver.regularMapLock.Unlock()
@@ -204,7 +207,7 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 		// Update event.
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			// Get the DNSNameResolver object.
-			newResolverObj, ok := oldObj.(*dnsv1alpha1.DNSNameResolver)
+			newResolverObj, ok := oldObj.(*ocpnetworkapiv1alpha1.DNSNameResolver)
 			if !ok {
 				log.Infof("object not of type DNSNameResolver: %v", oldObj)
 				return
@@ -225,13 +228,13 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (networkcli
 }
 
 // createNetworkClient returns a client supporting network.openshift.io apis.
-func createNetworkClient() (networkclient.Interface, error) {
+func createNetworkClient() (ocpnetworkclient.Interface, error) {
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	return networkclient.NewForConfig(kubeConfig)
+	return ocpnetworkclient.NewForConfig(kubeConfig)
 }
 
 // initPlugin initializes the ocp_dnsnameresolver plugin and returns the plugin startup and

@@ -9,8 +9,8 @@ import (
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/plugin/pkg/dnstest"
 	"github.com/coredns/coredns/request"
-	networkv1alpha1 "github.com/openshift/api/network/v1alpha1"
-	networkv1alpha1lister "github.com/openshift/client-go/network/listers/network/v1alpha1"
+	ocpnetworkapiv1alpha1 "github.com/openshift/api/network/v1alpha1"
+	ocpnetworkv1alpha1lister "github.com/openshift/client-go/network/listers/network/v1alpha1"
 
 	"github.com/miekg/dns"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -197,7 +197,7 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesSuccess(ctx context.Conte
 			// Retry the update of the DNSNameResolver object if there's a conflict during the update.
 			retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				// Fetch the DNSNameResolver object.
-				resolverObj, err := networkv1alpha1lister.NewDNSNameResolverLister(resolver.dnsNameResolverInformer.GetIndexer()).DNSNameResolvers(namespace).Get(objName)
+				resolverObj, err := ocpnetworkv1alpha1lister.NewDNSNameResolverLister(resolver.dnsNameResolverInformer.GetIndexer()).DNSNameResolvers(namespace).Get(objName)
 				if err != nil {
 					return err
 				}
@@ -294,7 +294,7 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesSuccess(ctx context.Conte
 						// Append the IP addresses which are not already available in the list of resolvedAddresses of the DNS name.
 						for ip, ttl := range ipTTLs {
 							if !matchedIPTTLs.Has(ip) {
-								resolvedAddress := networkv1alpha1.DNSNameResolverResolvedAddress{
+								resolvedAddress := ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 									IP:             ip,
 									TTLSeconds:     ttl,
 									LastLookupTime: currentTime.DeepCopy(),
@@ -420,8 +420,8 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesSuccess(ctx context.Conte
 					// Add the resolved name entry for the DNS name (applies to both regular and wildcard DNS names) if the entry is not found.
 
 					// Create the resolved name entry.
-					resolvedName := networkv1alpha1.DNSNameResolverResolvedName{
-						DNSName:            networkv1alpha1.DNSName(dnsName),
+					resolvedName := ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
+						DNSName:            ocpnetworkapiv1alpha1.DNSName(dnsName),
 						ResolutionFailures: 0,
 						Conditions: []metav1.Condition{
 							{
@@ -436,7 +436,7 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesSuccess(ctx context.Conte
 
 					// Add the IP addresses to the resolved name entry.
 					for ip, ttl := range ipTTLs {
-						resolvedAddress := networkv1alpha1.DNSNameResolverResolvedAddress{
+						resolvedAddress := ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							IP:             ip,
 							TTLSeconds:     ttl,
 							LastLookupTime: currentTime.DeepCopy(),
@@ -446,7 +446,7 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesSuccess(ctx context.Conte
 
 					if isWildcard(dnsName) {
 						// Add the resolved name entry for the wildcard DNS name at the beginning of the list of resolved names.
-						newResolverObj.Status.ResolvedNames = append([]networkv1alpha1.DNSNameResolverResolvedName{resolvedName}, newResolverObj.Status.ResolvedNames...)
+						newResolverObj.Status.ResolvedNames = append([]ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{resolvedName}, newResolverObj.Status.ResolvedNames...)
 					} else {
 						// Add the resolved name entry for the regular DNS name at the end of the list of resolved names.
 						newResolverObj.Status.ResolvedNames = append(newResolverObj.Status.ResolvedNames, resolvedName)
@@ -460,7 +460,7 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesSuccess(ctx context.Conte
 				}
 
 				// Update the status of the DNSNameResolver object.
-				_, err = resolver.dnsNameResolverClient.DNSNameResolvers(namespace).UpdateStatus(ctx, newResolverObj, metav1.UpdateOptions{})
+				_, err = resolver.ocpNetworkClient.DNSNameResolvers(namespace).UpdateStatus(ctx, newResolverObj, metav1.UpdateOptions{})
 				return err
 			})
 			if retryErr != nil {
@@ -490,7 +490,7 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesFailure(ctx context.Conte
 			// Retry the update of the DNSNameResolver object if there's a conflict during the update.
 			retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 				// Fetch the DNSNameResolver object.
-				resolverObj, err := networkv1alpha1lister.NewDNSNameResolverLister(resolver.dnsNameResolverInformer.GetIndexer()).DNSNameResolvers(namespace).Get(objName)
+				resolverObj, err := ocpnetworkv1alpha1lister.NewDNSNameResolverLister(resolver.dnsNameResolverInformer.GetIndexer()).DNSNameResolvers(namespace).Get(objName)
 				if err != nil {
 					return err
 				}
@@ -600,7 +600,7 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesFailure(ctx context.Conte
 				}
 
 				// Update the status of the DNSNameResolver object.
-				_, err = resolver.dnsNameResolverClient.DNSNameResolvers(namespace).UpdateStatus(ctx, newResolverObj, metav1.UpdateOptions{})
+				_, err = resolver.ocpNetworkClient.DNSNameResolvers(namespace).UpdateStatus(ctx, newResolverObj, metav1.UpdateOptions{})
 				return err
 			})
 			if retryErr != nil {

@@ -12,10 +12,10 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/miekg/dns"
-	networkv1alpha1 "github.com/openshift/api/network/v1alpha1"
-	networkclient "github.com/openshift/client-go/network/clientset/versioned"
-	networkfake "github.com/openshift/client-go/network/clientset/versioned/fake"
-	networklisterv1alpha1 "github.com/openshift/client-go/network/listers/network/v1alpha1"
+	ocpnetworkapiv1alpha1 "github.com/openshift/api/network/v1alpha1"
+	ocpnetworkclient "github.com/openshift/client-go/network/clientset/versioned"
+	ocpnetworkfakeclient "github.com/openshift/client-go/network/clientset/versioned/fake"
+	ocpnetworklisterv1alpha1 "github.com/openshift/client-go/network/listers/network/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
@@ -43,22 +43,22 @@ type query struct {
 
 type dnsTestCase struct {
 	name             string
-	dnsNameResolvers []networkv1alpha1.DNSNameResolver
+	dnsNameResolvers []ocpnetworkapiv1alpha1.DNSNameResolver
 	queries          []query
-	expectedStatuses []networkv1alpha1.DNSNameResolverStatus
+	expectedStatuses []ocpnetworkapiv1alpha1.DNSNameResolverStatus
 }
 
 var dnsTestCases []dnsTestCase = []dnsTestCase{
 	// Regular DNS Name successful resolution
 	{
 		name: "Update regular dns name resolver object status",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
 			},
@@ -77,12 +77,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -108,20 +108,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update regular dns name resolver object status with latest ttl of the corresponding IPs",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     20,
@@ -161,12 +161,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -192,20 +192,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Don't update the ttl of an IP in the regular dns name resolver object's status if next lookup time hasn't changed",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     40,
@@ -245,12 +245,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 0,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 40,
@@ -276,20 +276,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update regular dns name resolver object status and append the new IP",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     30,
@@ -328,12 +328,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -363,20 +363,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update regular dns name resolver object status with latest ttl of the corresponding IPs, set resolutionFailures to 0 and Degraded condition to false",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     5,
@@ -416,12 +416,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -448,13 +448,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	// Regular DNS Name resolution failure
 	{
 		name: "Don't update regular dns name resolver object status",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
 			},
@@ -469,24 +469,24 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 0,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{{}},
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{{}},
 	},
 	{
 		name: "Increment resolutionFailure field in regular dns name resolver object's status",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     30,
@@ -522,12 +522,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -553,20 +553,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Increment resolutionFailure field in regular dns name resolver object's status and update ttlSeconds and lastLookupTime fields",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     32,
@@ -602,13 +602,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 5,
@@ -634,20 +634,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Remove resolved dns name from regular dns name resolver object's status",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     5,
@@ -683,18 +683,18 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{{}},
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{{}},
 	},
 	// Wildcard DNS Name successful resolution
 	{
 		name: "Update wildcard dns name resolver object status with regular dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -713,12 +713,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -744,20 +744,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Don't update the ttl of an IP for a regular dns name in the wildcard dns name resolver object's status if next lookup time hasn't changed",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     40,
@@ -797,12 +797,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 0,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 40,
@@ -828,13 +828,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update wildcard dns name resolver object status with wildcard dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -853,12 +853,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -884,20 +884,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Don't update the ttl of an IP for the wildcard dns name if next lookup time hasn't changed",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "*.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     50,
@@ -937,12 +937,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 0,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 50,
@@ -968,13 +968,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update wildcard dns name resolver object status with only wildcard dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1005,12 +1005,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 0,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1036,13 +1036,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update wildcard dns name resolver object status with regular dns name, then remove regular dns name and add wildcard dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1073,12 +1073,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1104,13 +1104,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update wildcard dns name resolver object status with wildcard dns name, then don't add regular dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1141,12 +1141,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 0,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1172,20 +1172,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Remove regular dns names from wildcard dns name resolver object status and add the wildcard dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     40,
@@ -1209,7 +1209,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						},
 						{
 							DNSName: "sub.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     40,
@@ -1249,12 +1249,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1280,13 +1280,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update wildcard dns name resolver object status with different IPs for regular and wildcard dns names",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1317,12 +1317,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1344,7 +1344,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 					},
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "2.1.1.1",
 								TTLSeconds: 30,
@@ -1371,13 +1371,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	// Wildcard DNS Name resolution failure
 	{
 		name: "Don't update wildcard dns name resolver object status",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1392,24 +1392,24 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 0,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{{}},
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{{}},
 	},
 	{
 		name: "Remove wildcard dns name from wildcard dns name resolver object status",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "*.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     20,
@@ -1428,7 +1428,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						},
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.2",
 									TTLSeconds:     40,
@@ -1459,12 +1459,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.2",
 								TTLSeconds: 40,
@@ -1486,20 +1486,20 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Increment resolutionFailures of regular dns name in wildcard dns name resolver object status",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
-				Status: networkv1alpha1.DNSNameResolverStatus{
-					ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				Status: ocpnetworkapiv1alpha1.DNSNameResolverStatus{
+					ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 						{
 							DNSName: "*.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.1",
 									TTLSeconds:     40,
@@ -1518,7 +1518,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						},
 						{
 							DNSName: "www.example.com.",
-							ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
 									IP:             "1.1.1.2",
 									TTLSeconds:     50,
@@ -1549,12 +1549,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 40,
@@ -1572,7 +1572,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 					},
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.2",
 								TTLSeconds: 50,
@@ -1595,13 +1595,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	// Regular and Wildcard DNS Name
 	{
 		name: "Update both regular and wildcard dns name resolver object statuses with regular dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
 			},
@@ -1610,7 +1610,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1629,12 +1629,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 2,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1657,10 +1657,10 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1686,13 +1686,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update only wildcard dns name resolver object status with wildcard dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
 			},
@@ -1701,7 +1701,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1720,13 +1720,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{},
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1752,13 +1752,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update regular dns name resolver object status with regular dns name and wildcard dns name resolver object status with wildcard dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
 			},
@@ -1767,7 +1767,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1798,12 +1798,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1826,10 +1826,10 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1855,13 +1855,13 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 	},
 	{
 		name: "Update regular dns name resolver object status with regular dns name and wildcard dns name resolver object status with regular dns name, then remove regular dns name and add wildcard dns name",
-		dnsNameResolvers: []networkv1alpha1.DNSNameResolver{
+		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "regular",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "www.example.com.",
 				},
 			},
@@ -1870,7 +1870,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 					Name:      "wildcard",
 					Namespace: "dns",
 				},
-				Spec: networkv1alpha1.DNSNameResolverSpec{
+				Spec: ocpnetworkapiv1alpha1.DNSNameResolverSpec{
 					Name: "*.example.com.",
 				},
 			},
@@ -1901,12 +1901,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				numObjectUpdated: 1,
 			},
 		},
-		expectedStatuses: []networkv1alpha1.DNSNameResolverStatus{
+		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "www.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1929,10 +1929,10 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 			{
-				ResolvedNames: []networkv1alpha1.DNSNameResolverResolvedName{
+				ResolvedNames: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedName{
 					{
 						DNSName: "*.example.com.",
-						ResolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
 								TTLSeconds: 30,
@@ -1966,7 +1966,7 @@ func TestServeDNS(t *testing.T) {
 	// Create channel to know when the watch has started.
 	watcherStarted := make(chan struct{})
 	// Create the fake client.
-	fakeNetworkClient := networkfake.NewSimpleClientset()
+	fakeNetworkClient := ocpnetworkfakeclient.NewSimpleClientset()
 	// A watch reactor for dns name resolver objects that allows the injection of the watcherStarted channel.
 	fakeNetworkClient.PrependWatchReactor("dnsnameresolvers", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
 		gvr := action.GetResource()
@@ -1980,13 +1980,13 @@ func TestServeDNS(t *testing.T) {
 	})
 
 	// createFakeClient returns the fakeNetworkClient.
-	createFakeClient := func() (networkclient.Interface, error) {
+	createFakeClient := func() (ocpnetworkclient.Interface, error) {
 		return fakeNetworkClient, nil
 	}
 	// Create a channel to receive the dns name resolver objects from the informer.
-	resolverNames := make(chan *networkv1alpha1.DNSNameResolver, 1)
+	resolverNames := make(chan *ocpnetworkapiv1alpha1.DNSNameResolver, 1)
 	// sendToChannel sends the received dns name resolver objects to the resolverNames channel.
-	sendToChannel := func(resolverObj *networkv1alpha1.DNSNameResolver) {
+	sendToChannel := func(resolverObj *ocpnetworkapiv1alpha1.DNSNameResolver) {
 		resolverNames <- resolverObj
 	}
 	// Initialize the informer with a fake client and receive dns name resolver objects
@@ -2046,7 +2046,7 @@ func TestServeDNS(t *testing.T) {
 			// Iterate through the DNSNameResolver objects.
 			for index, dnsNameResolver := range dnstc.dnsNameResolvers {
 				// Get the current DNSNameResolver object.
-				resolverObj, err := networklisterv1alpha1.NewDNSNameResolverLister(resolver.dnsNameResolverInformer.GetIndexer()).DNSNameResolvers("dns").Get(dnsNameResolver.Name)
+				resolverObj, err := ocpnetworklisterv1alpha1.NewDNSNameResolverLister(resolver.dnsNameResolverInformer.GetIndexer()).DNSNameResolvers("dns").Get(dnsNameResolver.Name)
 				if err != nil {
 					t.Fatalf("error retrieving dns name resolver add: %v", err)
 				}
@@ -2068,8 +2068,8 @@ func TestServeDNS(t *testing.T) {
 						if currentResolvedName.DNSName == expectedResolvedName.DNSName {
 							cmpOpts := []cmp.Option{
 								cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime"),
-								cmpopts.IgnoreFields(networkv1alpha1.DNSNameResolverResolvedAddress{}, "LastLookupTime"),
-								cmpopts.SortSlices(func(elem1, elem2 networkv1alpha1.DNSNameResolverResolvedAddress) bool {
+								cmpopts.IgnoreFields(ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{}, "LastLookupTime"),
+								cmpopts.SortSlices(func(elem1, elem2 ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress) bool {
 									return elem1.IP > elem2.IP
 								}),
 							}
