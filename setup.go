@@ -32,12 +32,8 @@ func setup(c *caddy.Controller) error {
 		return plugin.Error(pluginName, err)
 	}
 
-	if onStart != nil {
-		c.OnStartup(onStart)
-	}
-	if onShut != nil {
-		c.OnShutdown(onShut)
-	}
+	c.OnStartup(onStart)
+	c.OnShutdown(onShut)
 
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
 		resolver.Next = next
