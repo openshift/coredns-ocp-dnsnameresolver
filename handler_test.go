@@ -13,7 +13,6 @@ import (
 
 	"github.com/miekg/dns"
 	ocpnetworkapiv1alpha1 "github.com/openshift/api/network/v1alpha1"
-	ocpnetworkclient "github.com/openshift/client-go/network/clientset/versioned"
 	ocpnetworkfakeclient "github.com/openshift/client-go/network/clientset/versioned/fake"
 	ocpnetworklisterv1alpha1 "github.com/openshift/client-go/network/listers/network/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1979,10 +1978,6 @@ func TestServeDNS(t *testing.T) {
 		return true, watch, nil
 	})
 
-	// createFakeClient returns the fakeNetworkClient.
-	createFakeClient := func() (ocpnetworkclient.Interface, error) {
-		return fakeNetworkClient, nil
-	}
 	// Create a channel to receive the dns name resolver objects from the informer.
 	resolverNames := make(chan *ocpnetworkapiv1alpha1.DNSNameResolver, 1)
 	// sendToChannel sends the received dns name resolver objects to the resolverNames channel.
@@ -1991,7 +1986,7 @@ func TestServeDNS(t *testing.T) {
 	}
 	// Initialize the informer with a fake client and receive dns name resolver objects
 	// in the resolverNames channel.
-	resolver.initInformer(createFakeClient, sendToChannel)
+	resolver.initInformer(fakeNetworkClient, sendToChannel)
 
 	// Make sure informer is running.
 	go resolver.dnsNameResolverInformer.Run(ctx.Done())

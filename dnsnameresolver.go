@@ -70,13 +70,7 @@ const (
 )
 
 // initInformer initializes the DNSNameResolver informer.
-func (resolver *OCPDNSNameResolver) initInformer(createClient func() (ocpnetworkclient.Interface, error), send func(*ocpnetworkapiv1alpha1.DNSNameResolver)) (err error) {
-	// Create the network client.
-	networkClient, err := createClient()
-	if err != nil {
-		return err
-	}
-
+func (resolver *OCPDNSNameResolver) initInformer(networkClient ocpnetworkclient.Interface, send func(*ocpnetworkapiv1alpha1.DNSNameResolver)) (err error) {
 	// Get the client for version v1alpha1 for DNSNameResolver objects.
 	resolver.ocpNetworkClient = networkClient.NetworkV1alpha1()
 
@@ -227,20 +221,21 @@ func (resolver *OCPDNSNameResolver) initInformer(createClient func() (ocpnetwork
 	return nil
 }
 
-// createNetworkClient returns a client supporting network.openshift.io apis.
-func createNetworkClient() (ocpnetworkclient.Interface, error) {
-	kubeConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return ocpnetworkclient.NewForConfig(kubeConfig)
-}
-
 // initPlugin initializes the ocp_dnsnameresolver plugin and returns the plugin startup and
 // shutdown callback functions.
 func (resolver *OCPDNSNameResolver) initPlugin() (func() error, func() error, error) {
-	err := resolver.initInformer(createNetworkClient, nil)
+	// Create a client supporting network.openshift.io apis.
+	kubeConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	networkClient, err := ocpnetworkclient.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = resolver.initInformer(networkClient, nil)
 	if err != nil {
 		return nil, nil, err
 	}
