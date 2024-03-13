@@ -23,12 +23,18 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	ocpnetworkv1alpha1 "github.com/openshift/api/network/v1alpha1"
 
+	"github.com/openshift/coredns-ocp-dnsnameresolver/operator/controller/dnsnameresolver"
+	dnsnameresolvercrd "github.com/openshift/coredns-ocp-dnsnameresolver/operator/controller/dnsnameresolver-crd"
+
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -43,6 +49,8 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
+	utilruntime.Must(ocpnetworkv1alpha1.Install(scheme))
 
 	//+kubebuilder:scaffold:scheme
 }
@@ -53,6 +61,9 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var coreDNSNamespace string
+	var coreDNSServieName string
+	var dnsNameResolverNamespace string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -62,6 +73,10 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&coreDNSNamespace, "coredns-namespace", "kube-system", "The namespace of the CoreDNS resources.")
+	flag.StringVar(&coreDNSServieName, "coredns-service-name", "kube-dns", "The name of the CoreDNS service.")
+	flag.StringVar(&dnsNameResolverNamespace, "dns-name-resolver-namespace", "ovn-kubernetes",
+		"The namespace to watch for the DNSNameResolver objects.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -116,6 +131,30 @@ func main() {
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
+	}
+
+	// Set up the DNSNameResolver controller.  This controller is unmanaged by
+	// the manager; the dnsnameresolvercrd controller starts it and the
+	// caches after it creates the DNSNameResolver CRD.
+	dnsNameResolverController, dnsNameResolverControllerCaches, err :=
+		dnsnameresolver.NewUnmanaged(mgr, dnsnameresolver.Config{
+			OperandNamespace:         coreDNSNamespace,
+			ServiceName:              coreDNSServieName,
+			DNSNameResolverNamespace: dnsNameResolverNamespace,
+		})
+	if err != nil {
+		setupLog.Error(err, "failed to create dnsnameresolver controller")
+		os.Exit(1)
+	}
+
+	// Set up the dnsnameresolvercrd controller.
+	if _, err := dnsnameresolvercrd.New(mgr, dnsnameresolvercrd.Config{
+		DependentCaches: dnsNameResolverControllerCaches,
+		DependentControllers: []controller.Controller{
+			dnsNameResolverController,
+		},
+	}); err != nil {
+		setupLog.Error(err, "failed to create dnsnameresolvercrd controller")
 	}
 
 	//+kubebuilder:scaffold:builder

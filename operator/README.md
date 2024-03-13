@@ -1,8 +1,21 @@
-# operator
-// TODO(user): Add simple overview of use/purpose
+# DNSNameResolver Operator
+The DNSNameResolver Operator can be used to test the unmanaged DNSNameResolver conroller.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+The DNSNameResolver controller sends DNS name lookup requests to maximum 5 random CoreDNS
+pods whenever the TTL of the IP addresses corresponding to a DNS name expires. The DNS name
+lookups will be handled by the ocp-dnsnameresolver CoreDNS plugin and any new IP address
+corresponding to the DNS name will be added to the status of the DNSNameResolver CR. The
+controller also removes the stale IP addresses from the status of the DNSNameResolver CRs
+after a grace period.
+
+To test the unmanaged DNSNameResolver controller, the operator runs another controller which
+watches the DNSNameResolver CRD and starts the DNSNameResolver controller.
+
+Kindly provide correct values for the following arguments when deploying the operator:
+- `coredns-namespace`
+- `coredns-service-name`
+- `dns-name-resolver-namespace`
 
 ## Getting Started
 
@@ -88,13 +101,6 @@ Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project
 ```sh
 kubectl apply -f https://raw.githubusercontent.com/<org>/operator/<tag or branch>/dist/install.yaml
 ```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
 ## License
 

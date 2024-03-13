@@ -8,7 +8,11 @@ layout:
 projectName: operator
 repo: github.com/openshift/coredns-ocp-dnsnameresolver/operator
 resources:
-- domain: openshift.io
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: openshift.io
   group: network.openshift.io
   kind: DNSNameResolver
   version: v1alpha1
