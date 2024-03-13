@@ -3,8 +3,6 @@ package ocp_dnsnameresolver
 import (
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsWildcard(t *testing.T) {
@@ -22,7 +20,9 @@ func TestIsWildcard(t *testing.T) {
 
 	for _, test := range tests {
 		actualOutput := isWildcard(test.dnsName)
-		require.Equal(t, actualOutput, test.expectedOutput)
+		if actualOutput != test.expectedOutput {
+			t.Fatalf("Actual output does not match with expected output. Actual output: %t, Expected output: %t", actualOutput, test.expectedOutput)
+		}
 	}
 }
 
@@ -39,7 +39,9 @@ func TestGetWildcard(t *testing.T) {
 
 	for _, test := range tests {
 		actualOutput := getWildcard(test.dnsName)
-		require.Equal(t, actualOutput, test.expectedOutput)
+		if actualOutput != test.expectedOutput {
+			t.Fatalf("Actual output does not match with expected output. Actual output: %s, Expected output: %s", actualOutput, test.expectedOutput)
+		}
 	}
 }
 

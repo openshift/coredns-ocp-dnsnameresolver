@@ -15,9 +15,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// namespaceDNSInfo is used to store information regarding a particular DNS name.
-// The map stores the namespaces where a DNSNameResolver object corresponding to
-// the DNS name is created.
+// namespaceDNSInfo is used to store information regarding DNSNameResolver
+// objects. The map stores the namespaces where a DNSNameResolver object
+// corresponding to a DNS name is created.
 // key: namespace, value: object name.
 type namespaceDNSInfo map[string]string
 
@@ -31,14 +31,20 @@ type OCPDNSNameResolver struct {
 	minimumTTL       int32
 	failureThreshold int32
 
-	// maps for storing regular and wildcard DNS name info.
-	// data mapping: DNS name --> Namespace --> DNSNameResolver object name.
+	// Data mapping for the regularDNSInfo and wildcardDNSInfo maps:
+	// DNS name --> Namespace --> DNSNameResolver object name.
 	// key: DNS name, value: namespaceDNSInfo map containing information
 	// about the namespaces where a DNSNameResolver object corresponding to
 	// the DNS name is created.
-	regularDNSInfo  map[string]namespaceDNSInfo
+	// regularDNSInfo map is used for storing regular DNS name details.
+	regularDNSInfo map[string]namespaceDNSInfo
+	// wildcardDNSInfo map is used for storing wildcard DNS name details.
 	wildcardDNSInfo map[string]namespaceDNSInfo
-	regularMapLock  sync.Mutex
+	// regularMapLock is used to serialize the access to the regularDNSInfo
+	// map.
+	regularMapLock sync.Mutex
+	// wildcardMapLock is used to serialize the access to the wildcardDNSInfo
+	// map.
 	wildcardMapLock sync.Mutex
 
 	// client and informer for handling DNSNameResolver objects.
@@ -70,7 +76,7 @@ const (
 )
 
 // initInformer initializes the DNSNameResolver informer.
-func (resolver *OCPDNSNameResolver) initInformer(networkClient ocpnetworkclient.Interface, send func(*ocpnetworkapiv1alpha1.DNSNameResolver)) (err error) {
+func (resolver *OCPDNSNameResolver) initInformer(networkClient ocpnetworkclient.Interface) (err error) {
 	// Get the client for version v1alpha1 for DNSNameResolver objects.
 	resolver.ocpNetworkClient = networkClient.NetworkV1alpha1()
 
@@ -132,11 +138,6 @@ func (resolver *OCPDNSNameResolver) initInformer(networkClient ocpnetworkclient.
 				resolver.regularDNSInfo[dnsName] = dnsInfoMap
 				resolver.regularMapLock.Unlock()
 			}
-
-			// Used only in unit tests.
-			if send != nil {
-				send(resolverObj)
-			}
 		},
 		// Delete event.
 		DeleteFunc: func(obj interface{}) {
@@ -191,31 +192,6 @@ func (resolver *OCPDNSNameResolver) initInformer(networkClient ocpnetworkclient.
 				}
 				resolver.regularMapLock.Unlock()
 			}
-
-			// Used only in unit tests.
-			if send != nil {
-				send(resolverObj)
-			}
-		},
-		// Used only in unit tests.
-		// Update event.
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			// Get the DNSNameResolver object.
-			newResolverObj, ok := oldObj.(*ocpnetworkapiv1alpha1.DNSNameResolver)
-			if !ok {
-				log.Infof("object not of type DNSNameResolver: %v", oldObj)
-				return
-			}
-
-			// Check if namespace is configured or not.
-			if !resolver.configuredNamespace(newResolverObj.Namespace) {
-				return
-			}
-
-			// Used only in unit tests.
-			if send != nil {
-				send(newResolverObj)
-			}
 		},
 	})
 	return nil
@@ -235,7 +211,7 @@ func (resolver *OCPDNSNameResolver) initPlugin() (func() error, func() error, er
 		return nil, nil, err
 	}
 
-	err = resolver.initInformer(networkClient, nil)
+	err = resolver.initInformer(networkClient)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -262,9 +238,9 @@ func (resolver *OCPDNSNameResolver) initPlugin() (func() error, func() error, er
 					return nil
 				}
 			case <-logTicker.C:
-				log.Info("waiting for DNS Name Resolver Informer sync before starting server")
+				log.Info("waiting for DNS Name Resolver factory sync before starting server")
 			case <-timeoutTicker.C:
-				log.Warning("starting server with unsynced DNS Name Resolver Informer")
+				log.Warning("starting server with unsynced DNS Name Resolver factory")
 				return nil
 			}
 		}

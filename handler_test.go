@@ -10,6 +10,8 @@ import (
 	"github.com/coredns/coredns/plugin/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/miekg/dns"
 	ocpnetworkapiv1alpha1 "github.com/openshift/api/network/v1alpha1"
@@ -17,9 +19,6 @@ import (
 	ocpnetworklisterv1alpha1 "github.com/openshift/client-go/network/listers/network/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/watch"
-	clienttesting "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/cache"
 )
 
 // nextPluginHandler is a fake implementation which returns DNS records of the given recordType
@@ -35,16 +34,11 @@ func nextPluginHandler(tc test.Case) plugin.Handler {
 	})
 }
 
-type query struct {
-	test.Case
-	numObjectUpdated int
-}
-
 type dnsTestCase struct {
-	name             string
-	dnsNameResolvers []ocpnetworkapiv1alpha1.DNSNameResolver
-	queries          []query
-	expectedStatuses []ocpnetworkapiv1alpha1.DNSNameResolverStatus
+	name              string
+	dnsNameResolvers  []ocpnetworkapiv1alpha1.DNSNameResolver
+	dnsQueryTestCases []test.Case
+	expectedStatuses  []ocpnetworkapiv1alpha1.DNSNameResolverStatus
 }
 
 var dnsTestCases []dnsTestCase = []dnsTestCase{
@@ -62,18 +56,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -122,14 +113,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     20,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 20,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     20,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 20,
 								},
 							},
 							ResolutionFailures: 0,
@@ -146,18 +135,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -206,14 +192,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 30,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 30,
 								},
 							},
 							ResolutionFailures: 0,
@@ -230,18 +214,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 0,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -252,11 +233,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
-								TTLSeconds: 40,
+								TTLSeconds: 30,
 							},
 							{
 								IP:         "1.1.1.2",
-								TTLSeconds: 40,
+								TTLSeconds: 30,
 							},
 						},
 						ResolutionFailures: 0,
@@ -290,14 +271,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     30,
-									LastLookupTime: &metav1.Time{Time: time.Now()},
+									IP:         "1.1.1.1",
+									TTLSeconds: 30,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     30,
-									LastLookupTime: &metav1.Time{Time: time.Now()},
+									IP:         "1.1.1.2",
+									TTLSeconds: 30,
 								},
 							},
 							ResolutionFailures: 1,
@@ -314,17 +293,14 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.3"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.3"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -377,14 +353,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     5,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-5 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 5,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     5,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-5 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 5,
 								},
 							},
 							ResolutionFailures: 2,
@@ -401,18 +375,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -458,14 +429,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeNameError,
-				},
-				numObjectUpdated: 0,
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeNameError,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{{}},
@@ -487,14 +455,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     30,
-									LastLookupTime: &metav1.Time{Time: time.Now()},
+									IP:         "1.1.1.1",
+									TTLSeconds: 30,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     30,
-									LastLookupTime: &metav1.Time{Time: time.Now()},
+									IP:         "1.1.1.2",
+									TTLSeconds: 30,
 								},
 							},
 							ResolutionFailures: 0,
@@ -511,14 +477,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeNameError,
-				},
-				numObjectUpdated: 1,
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeNameError,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -567,14 +530,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     32,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-30 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 2,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     32,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-30 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 2,
 								},
 							},
 							ResolutionFailures: 1,
@@ -591,14 +552,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeNameError,
-				},
-				numObjectUpdated: 1,
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeNameError,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -648,14 +606,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     5,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-5 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 0,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     5,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-5 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 0,
 								},
 							},
 							ResolutionFailures: 5,
@@ -672,14 +628,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeNameError,
-				},
-				numObjectUpdated: 1,
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeNameError,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{{}},
@@ -698,18 +651,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -758,14 +708,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 30,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 30,
 								},
 							},
 							ResolutionFailures: 0,
@@ -782,18 +730,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 0,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -804,11 +749,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
-								TTLSeconds: 40,
+								TTLSeconds: 30,
 							},
 							{
 								IP:         "1.1.1.2",
-								TTLSeconds: 40,
+								TTLSeconds: 30,
 							},
 						},
 						ResolutionFailures: 0,
@@ -838,18 +783,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -898,14 +840,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "*.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     50,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-20 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 30,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     50,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-20 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 30,
 								},
 							},
 							ResolutionFailures: 0,
@@ -922,18 +862,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 0,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -944,11 +881,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
-								TTLSeconds: 50,
+								TTLSeconds: 30,
 							},
 							{
 								IP:         "1.1.1.2",
-								TTLSeconds: 50,
+								TTLSeconds: 30,
 							},
 						},
 						ResolutionFailures: 0,
@@ -978,30 +915,24 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 0,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1046,30 +977,24 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1114,30 +1039,24 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 0,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1186,14 +1105,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 30,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 30,
 								},
 							},
 							ResolutionFailures: 0,
@@ -1210,14 +1127,12 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "sub.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 30,
 								},
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-10 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 30,
 								},
 							},
 							ResolutionFailures: 0,
@@ -1234,18 +1149,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1290,30 +1202,24 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 2.1.1.1"),
-						test.A("www.example.com. 30 IN A 2.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 2.1.1.1"),
+					test.A("www.example.com. 30 IN A 2.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1381,14 +1287,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeNameError,
-				},
-				numObjectUpdated: 0,
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeNameError,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{{}},
@@ -1410,9 +1313,8 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "*.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     20,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-20 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 0,
 								},
 							},
 							ResolutionFailures: 5,
@@ -1429,9 +1331,8 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-20 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 20,
 								},
 							},
 							ResolutionFailures: 0,
@@ -1448,14 +1349,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeNameError,
-				},
-				numObjectUpdated: 1,
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeNameError,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1466,7 +1364,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.2",
-								TTLSeconds: 40,
+								TTLSeconds: 20,
 							},
 						},
 						ResolutionFailures: 0,
@@ -1500,9 +1398,8 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "*.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.1",
-									TTLSeconds:     40,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-20 * time.Second)},
+									IP:         "1.1.1.1",
+									TTLSeconds: 20,
 								},
 							},
 							ResolutionFailures: 0,
@@ -1519,9 +1416,8 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 							DNSName: "www.example.com.",
 							ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 								{
-									IP:             "1.1.1.2",
-									TTLSeconds:     50,
-									LastLookupTime: &metav1.Time{Time: time.Now().Add(-20 * time.Second)},
+									IP:         "1.1.1.2",
+									TTLSeconds: 30,
 								},
 							},
 							ResolutionFailures: 0,
@@ -1538,14 +1434,11 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeNameError,
-				},
-				numObjectUpdated: 1,
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeNameError,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1556,7 +1449,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.1",
-								TTLSeconds: 40,
+								TTLSeconds: 20,
 							},
 						},
 						ResolutionFailures: 0,
@@ -1574,7 +1467,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 						ResolvedAddresses: []ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{
 							{
 								IP:         "1.1.1.2",
-								TTLSeconds: 50,
+								TTLSeconds: 30,
 							},
 						},
 						ResolutionFailures: 1,
@@ -1614,18 +1507,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 2,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1705,18 +1595,15 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1771,30 +1658,24 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1874,30 +1755,24 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 				},
 			},
 		},
-		queries: []query{
+		dnsQueryTestCases: []test.Case{
 			{
-				Case: test.Case{
-					Qname: "www.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("www.example.com. 30 IN A 1.1.1.1"),
-						test.A("www.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "www.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("www.example.com. 30 IN A 1.1.1.1"),
+					test.A("www.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 2,
 			},
 			{
-				Case: test.Case{
-					Qname: "*.example.com.",
-					Qtype: dns.TypeA,
-					Rcode: dns.RcodeSuccess,
-					Answer: []dns.RR{
-						test.A("*.example.com. 30 IN A 1.1.1.1"),
-						test.A("*.example.com. 30 IN A 1.1.1.2"),
-					},
+				Qname: "*.example.com.",
+				Qtype: dns.TypeA,
+				Rcode: dns.RcodeSuccess,
+				Answer: []dns.RR{
+					test.A("*.example.com. 30 IN A 1.1.1.1"),
+					test.A("*.example.com. 30 IN A 1.1.1.2"),
 				},
-				numObjectUpdated: 1,
 			},
 		},
 		expectedStatuses: []ocpnetworkapiv1alpha1.DNSNameResolverStatus{
@@ -1962,33 +1837,13 @@ func TestServeDNS(t *testing.T) {
 	defer cancel()
 	resolver := New()
 
-	// Create channel to know when the watch has started.
-	watcherStarted := make(chan struct{})
 	// Create the fake client.
 	fakeNetworkClient := ocpnetworkfakeclient.NewSimpleClientset()
-	// A watch reactor for dns name resolver objects that allows the injection of the watcherStarted channel.
-	fakeNetworkClient.PrependWatchReactor("dnsnameresolvers", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
-		gvr := action.GetResource()
-		ns := action.GetNamespace()
-		watch, err := fakeNetworkClient.Tracker().Watch(gvr, ns)
-		if err != nil {
-			return false, nil, err
-		}
-		close(watcherStarted)
-		return true, watch, nil
-	})
-
-	// Create a channel to receive the dns name resolver objects from the informer.
-	resolverNames := make(chan *ocpnetworkapiv1alpha1.DNSNameResolver, 1)
-	// sendToChannel sends the received dns name resolver objects to the resolverNames channel.
-	sendToChannel := func(resolverObj *ocpnetworkapiv1alpha1.DNSNameResolver) {
-		resolverNames <- resolverObj
-	}
 	// Initialize the informer with a fake client and receive dns name resolver objects
 	// in the resolverNames channel.
-	resolver.initInformer(fakeNetworkClient, sendToChannel)
+	resolver.initInformer(fakeNetworkClient)
 
-	// Make sure informer is running.
+	// Make sure DNS Name Resolver factory is started.
 	go resolver.dnsNameResolverInformer.Run(ctx.Done())
 
 	// This is not required in tests, but it serves as a proof-of-concept by
@@ -1996,107 +1851,131 @@ func TestServeDNS(t *testing.T) {
 	// we send any events to it.
 	cache.WaitForCacheSync(ctx.Done(), resolver.dnsNameResolverInformer.HasSynced)
 
-	// The fake client doesn't support resource version. Any writes to the client
-	// after the informer's initial LIST and before the informer establishing the
-	// watcher will be missed by the informer. Therefore we wait until the watcher
-	// starts.
-	<-watcherStarted
-
 	for _, dnstc := range dnsTestCases {
 		t.Run(dnstc.name, func(t *testing.T) {
+			lister := ocpnetworklisterv1alpha1.NewDNSNameResolverLister(resolver.dnsNameResolverInformer.GetIndexer())
 
 			// Iterate through the DNSNameResolver objects.
 			for _, dnsNameResolver := range dnstc.dnsNameResolvers {
+
+				// If any resolved address exists in the status then update the LastLookup field to current time.
+				// This is done to ensure that the logic checking the next lookup time does not encounter any error
+				// and calculates it correctly.
+				for resolvedNameIndex, resolvedName := range dnsNameResolver.Status.ResolvedNames {
+					for resolvedAddressIndex := range resolvedName.ResolvedAddresses {
+						resolvedName.ResolvedAddresses[resolvedAddressIndex].LastLookupTime = &metav1.Time{
+							Time: time.Now(),
+						}
+					}
+					dnsNameResolver.Status.ResolvedNames[resolvedNameIndex] = resolvedName
+				}
+
 				// Create the DNSNameResolver object.
 				_, err := fakeNetworkClient.NetworkV1alpha1().DNSNameResolvers("dns").Create(context.TODO(), &dnsNameResolver, metav1.CreateOptions{})
 				if err != nil {
-					t.Fatalf("error injecting dns name resolver add: %v", err)
+					t.Fatalf("error injecting dns name resolver: %v", err)
 				}
 
 				// Wait for it to be informer to get the event.
-				select {
-				case <-resolverNames:
-				case <-time.After(wait.ForeverTestTimeout):
-					t.Fatal("Informer did not get the added dns name resolver")
+				err = wait.PollUntilContextTimeout(context.Background(), 100*time.Millisecond, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+					_, err = lister.DNSNameResolvers("dns").Get(dnsNameResolver.Name)
+					if err != nil {
+						return false, nil
+					}
+
+					return true, nil
+				})
+				if err != nil {
+					t.Fatalf("Informer did not get the added dns name resolver: %v", err)
 				}
 			}
 
 			w := dnstest.NewRecorder(&test.ResponseWriter{})
 
-			// For each DNS query call the ServeDNS function of the plugin.
-			for _, query := range dnstc.queries {
-				resolver.Next = nextPluginHandler(query.Case)
-				resolver.ServeDNS(context.TODO(), w, query.Msg())
+			// For each DNS test.Case call the ServeDNS function of the plugin.
+			for _, testCase := range dnstc.dnsQueryTestCases {
+				resolver.Next = nextPluginHandler(testCase)
+				resolver.ServeDNS(context.TODO(), w, testCase.Msg())
 
-				// Wait for it to be informer to get the events.
-				for i := 0; i < query.numObjectUpdated; i++ {
-					select {
-					case <-resolverNames:
-					case <-time.After(wait.ForeverTestTimeout):
-						t.Fatal("Informer did not get the updated dns name resolver")
-					}
-				}
+				time.Sleep(100 * time.Millisecond)
 			}
 
 			// Iterate through the DNSNameResolver objects.
 			for index, dnsNameResolver := range dnstc.dnsNameResolvers {
-				// Get the current DNSNameResolver object.
-				resolverObj, err := ocpnetworklisterv1alpha1.NewDNSNameResolverLister(resolver.dnsNameResolverInformer.GetIndexer()).DNSNameResolvers("dns").Get(dnsNameResolver.Name)
-				if err != nil {
-					t.Fatalf("error retrieving dns name resolver add: %v", err)
-				}
 
-				matched := false
+				var resolverObj *ocpnetworkapiv1alpha1.DNSNameResolver
+				// Wait for it to be informer to get the events.
+				err := wait.PollUntilContextTimeout(context.Background(), 100*time.Millisecond, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 
-				// Check if the number of resolved names in the objects's status and in the expected status is equal to zero.
-				if len(dnstc.expectedStatuses[index].ResolvedNames) == 0 && len(resolverObj.Status.ResolvedNames) == 0 {
-					matched = true
-				}
+					// Get the current DNSNameResolver object.
+					resolverObj, err = lister.DNSNameResolvers("dns").Get(dnsNameResolver.Name)
+					if err != nil {
+						t.Fatalf("error retrieving dns name resolver add: %v", err)
+					}
 
-				// Check if the number of resolved names in the status matches that of the expected status.
-				if len(dnstc.expectedStatuses[index].ResolvedNames) == len(resolverObj.Status.ResolvedNames) {
+					matched := false
 
-					// Iterate through each resolved name in the object's status and check if it matches that of the expected status.
-					for index, expectedResolvedName := range dnstc.expectedStatuses[index].ResolvedNames {
-						matched = false
-						currentResolvedName := resolverObj.Status.ResolvedNames[index]
-						if currentResolvedName.DNSName == expectedResolvedName.DNSName {
-							cmpOpts := []cmp.Option{
-								cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime"),
-								cmpopts.IgnoreFields(ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{}, "LastLookupTime"),
-								cmpopts.SortSlices(func(elem1, elem2 ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress) bool {
-									return elem1.IP > elem2.IP
-								}),
+					// Check if the number of resolved names in the objects's status and in the expected status is equal to zero.
+					if len(dnstc.expectedStatuses[index].ResolvedNames) == 0 && len(resolverObj.Status.ResolvedNames) == 0 {
+						matched = true
+					}
+
+					// Check if the number of resolved names in the status matches that of the expected status.
+					if len(dnstc.expectedStatuses[index].ResolvedNames) == len(resolverObj.Status.ResolvedNames) {
+
+						// Iterate through each resolved name in the object's status and check if it matches that of the expected status.
+						for index, expectedResolvedName := range dnstc.expectedStatuses[index].ResolvedNames {
+							matched = false
+							currentResolvedName := resolverObj.Status.ResolvedNames[index]
+							if currentResolvedName.DNSName == expectedResolvedName.DNSName {
+								cmpOpts := []cmp.Option{
+									cmpopts.IgnoreFields(metav1.Condition{}, "ObservedGeneration", "LastTransitionTime"),
+									cmpopts.IgnoreFields(ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress{}, "LastLookupTime"),
+									cmpopts.SortSlices(func(elem1, elem2 ocpnetworkapiv1alpha1.DNSNameResolverResolvedAddress) bool {
+										return elem1.IP > elem2.IP
+									}),
+								}
+								if cmp.Diff(currentResolvedName, expectedResolvedName, cmpOpts...) == "" {
+									matched = true
+								}
 							}
-							if cmp.Diff(currentResolvedName, expectedResolvedName, cmpOpts...) == "" {
-								matched = true
+							if !matched {
+								break
 							}
-						}
-						if !matched {
-							break
 						}
 					}
+					if !matched {
+						return false, nil
+					}
+
+					return true, nil
+				})
+				// If the object's status did not match the expected status then fail the test.
+				if err != nil {
+					t.Logf("Current Status: %v", resolverObj.Status)
+					t.Logf("Expected Status: %v", dnstc.expectedStatuses[index])
+					t.Fatalf("dns name resolver object's status did not match the expected status: DNS name: %s", resolverObj.Spec.Name)
 				}
 
 				// Delete the DNSNameResolver object.
 				err = fakeNetworkClient.NetworkV1alpha1().DNSNameResolvers("dns").Delete(context.TODO(), dnsNameResolver.Name, metav1.DeleteOptions{})
 				if err != nil {
-					t.Fatalf("error deleting dns name resolver add: %v", err)
+					t.Fatalf("error deleting dns name resolver: %v", err)
 				}
 
 				// Wait for it to be informer to get the event.
-				select {
-				case <-resolverNames:
-				case <-time.After(wait.ForeverTestTimeout):
-					t.Fatal("Informer did not get the deleted dns name resolver")
+				err = wait.PollUntilContextTimeout(context.Background(), 100*time.Millisecond, 1*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+					_, err = lister.DNSNameResolvers("dns").Get(dnsNameResolver.Name)
+					if err == nil || !kerrors.IsNotFound(err) {
+						return false, nil
+					}
+
+					return true, nil
+				})
+				if err != nil {
+					t.Fatalf("error deleting dns name resolver add: %v", err)
 				}
 
-				// If the object's status did not match the expected status then fail the test.
-				if !matched {
-					t.Logf("Current Status: %v", resolverObj.Status)
-					t.Logf("Expected Status: %v", dnstc.expectedStatuses)
-					t.Fatalf("dns name resolver object's status did not match the expected status: DNS name: %s", resolverObj.Spec.Name)
-				}
 			}
 		})
 	}

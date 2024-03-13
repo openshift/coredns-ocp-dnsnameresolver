@@ -12,9 +12,9 @@ import (
 const (
 	pluginName = "ocp_dnsnameresolver"
 
-	namespaces       = "namespaces"
-	minTTL           = "minTTL"
-	failureThreshold = "failureThreshold"
+	namespacesField       = "namespaces"
+	minTTLField           = "minTTL"
+	failureThresholdField = "failureThreshold"
 )
 
 var log = clog.NewWithPlugin(pluginName)
@@ -60,7 +60,7 @@ func resolverParse(c *caddy.Controller) (*OCPDNSNameResolver, error) {
 
 		for c.NextBlock() {
 			switch c.Val() {
-			case namespaces:
+			case namespacesField:
 				args := c.RemainingArgs()
 				if len(args) > 0 {
 					for _, a := range args {
@@ -69,7 +69,7 @@ func resolverParse(c *caddy.Controller) (*OCPDNSNameResolver, error) {
 				} else {
 					return nil, c.ArgErr()
 				}
-			case minTTL:
+			case minTTLField:
 				args := c.RemainingArgs()
 				if len(args) != 1 {
 					return nil, c.ArgErr()
@@ -82,7 +82,7 @@ func resolverParse(c *caddy.Controller) (*OCPDNSNameResolver, error) {
 					return nil, c.Errf("value of minTTL should be greater than 0: %s", args[0])
 				}
 				resolver.minimumTTL = int32(minTTL)
-			case failureThreshold:
+			case failureThresholdField:
 				args := c.RemainingArgs()
 				if len(args) != 1 {
 					return nil, c.ArgErr()
@@ -96,7 +96,7 @@ func resolverParse(c *caddy.Controller) (*OCPDNSNameResolver, error) {
 				}
 				resolver.failureThreshold = int32(failureThreshold)
 			default:
-				return nil, c.Errf("unknown property '%s'", c.Val())
+				return nil, c.Errf("unknown property %q", c.Val())
 			}
 		}
 	}

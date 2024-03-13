@@ -9,7 +9,6 @@ require (
 	github.com/miekg/dns v1.1.55
 	github.com/openshift/api v0.0.0-20231017161003-8f2e18642ccb
 	github.com/openshift/client-go v0.0.0-20231018150822-6e226e2825a6
-	github.com/stretchr/testify v1.8.2
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
 )
@@ -45,7 +44,6 @@ require (
 	github.com/onsi/ginkgo/v2 v2.11.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.16.0 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
