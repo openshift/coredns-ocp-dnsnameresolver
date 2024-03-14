@@ -238,9 +238,12 @@ func (resolver *OCPDNSNameResolver) initPlugin() (func() error, func() error, er
 					return nil
 				}
 			case <-logTicker.C:
-				log.Info("waiting for DNS Name Resolver factory sync before starting server")
+				log.Info("waiting for DNS Name Resolver Informer sync before starting server")
 			case <-timeoutTicker.C:
-				log.Warning("starting server with unsynced DNS Name Resolver factory")
+				// Following similar strategy of the kubernetes CoreDNS plugin to start the server
+				// with unsynced informer. For reference:
+				// https://github.com/openshift/coredns/blob/022a0530038602605b8f3e8866c2a6ded97708cc/plugin/kubernetes/kubernetes.go#L261-L287
+				log.Warning("starting server with unsynced DNS Name Resolver Informer")
 				return nil
 			}
 		}
