@@ -105,15 +105,21 @@ func (resolver *OCPDNSNameResolver) initInformer(networkClient ocpnetworkclient.
 				// If the DNS name is wildcard, add the details of the DNSNameResolver
 				// object to the wildcardDNSInfo map.
 				resolver.wildcardMapLock.Lock()
-				dnsInfoMap, exists := resolver.wildcardDNSInfo[dnsName]
+				dnsInfoMap, dnsInfoExists := resolver.wildcardDNSInfo[dnsName]
 				// If details of DNS name and the DNSNameResolver objects already exist
 				// then check if the existing information match with the current one.
-				// Otherwise, don't proceed.
-				if exists && dnsInfoMap[resolverObj.Namespace] != resolverObj.Name {
-					resolver.wildcardMapLock.Unlock()
-					return
+				// In a namespace only one DNSNameResolver object should be created
+				// corresponding to a DNS name. If more than one DNSNameResolver object
+				// exists in a namespace corresponding to a DNS name, only the first
+				// object will be considered. Thus, if the existing information doesn't
+				// match, then don't proceed.
+				if dnsInfoExists {
+					if objName, objNameFound := dnsInfoMap[resolverObj.Namespace]; objNameFound && objName != resolverObj.Name {
+						resolver.wildcardMapLock.Unlock()
+						return
+					}
 				}
-				if !exists {
+				if !dnsInfoExists {
 					dnsInfoMap = make(namespaceDNSInfo)
 				}
 				dnsInfoMap[resolverObj.Namespace] = resolverObj.Name
@@ -123,15 +129,21 @@ func (resolver *OCPDNSNameResolver) initInformer(networkClient ocpnetworkclient.
 				// If the DNS name is regular, add the details of the DNSNameResolver
 				// object to the regularDNSInfo map.
 				resolver.regularMapLock.Lock()
-				dnsInfoMap, exists := resolver.regularDNSInfo[dnsName]
+				dnsInfoMap, dnsInfoExists := resolver.regularDNSInfo[dnsName]
 				// If details of DNS name and the DNSNameResolver objects already exist
 				// then check if the existing information match with the current one.
-				// Otherwise, don't proceed.
-				if exists && dnsInfoMap[resolverObj.Namespace] != resolverObj.Name {
-					resolver.regularMapLock.Unlock()
-					return
+				// In a namespace only one DNSNameResolver object should be created
+				// corresponding to a DNS name. If more than one DNSNameResolver object
+				// exists in a namespace corresponding to a DNS name, only the first
+				// object will be considered. Thus, if the existing information doesn't
+				// match, then don't proceed.
+				if dnsInfoExists {
+					if objName, objNameFound := dnsInfoMap[resolverObj.Namespace]; objNameFound && objName != resolverObj.Name {
+						resolver.regularMapLock.Unlock()
+						return
+					}
 				}
-				if !exists {
+				if !dnsInfoExists {
 					dnsInfoMap = make(namespaceDNSInfo)
 				}
 				dnsInfoMap[resolverObj.Namespace] = resolverObj.Name

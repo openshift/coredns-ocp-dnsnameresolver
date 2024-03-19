@@ -302,7 +302,8 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesSuccess(
 				// If the DNS lookup is for a wildcard DNS name, then remove the existing resolved name entries of the regular DNS names
 				// completely matching that of the wildcard DNS name's resolved name entry.
 				if isWildcard(dnsName) {
-					statusUpdated = removeResolvedNames(indicesMatchingWildcard, newResolverObj)
+					isRemoved := removeResolvedNames(indicesMatchingWildcard, newResolverObj)
+					statusUpdated = statusUpdated || isRemoved
 				}
 
 				if !isWildcard(dnsName) && matchedWildcard {
@@ -313,7 +314,8 @@ func (resolver *OCPDNSNameResolver) updateResolvedNamesSuccess(
 					if foundResolvedName {
 						indexList = append(indexList, existingIndex)
 					}
-					statusUpdated = removeResolvedNames(indexList, newResolverObj)
+					isRemoved := removeResolvedNames(indexList, newResolverObj)
+					statusUpdated = statusUpdated || isRemoved
 				} else if !foundResolvedName {
 					// Add the resolved name entry for the DNS name (applies to both regular and wildcard DNS names) if the entry is not found.
 					addResolvedName(dnsName, currentTime, ipTTLs, newResolverObj)
@@ -667,12 +669,11 @@ func checkAndUpdateResolvedName(
 		}
 	}
 
-	// If the resolved name entry is not getting removed, then the IP addresses whose TTLs have expired should be
-	// refreshed after a duration of minimum TTL value. To ensure this, the TTLs of these IP addresses should be
-	// changed to minimum TTL value and the last lookup time should be set to current time. Additionally the
-	// resolutionFailures field value should be incremented by 1. If the conditions field is not set or if the
-	// existing status of the "Degraded" condition is not true, then the status of the condition will be set to
-	// true, reason and message will be set to corresponding to that of corresponding failure rcode.
+	// If the resolved name entry is not getting removed, then the IP addresses whose TTLs have expired or about
+	// to expire should be set to the minimum TTL value and the last lookup time should be set to current time.
+	// Additionally, the resolutionFailures field value should be incremented by 1. If the conditions field is not
+	// set or if the existing status of the "Degraded" condition is not true, then the status of the condition
+	// will be set to true, reason and message will be set to corresponding to that of corresponding failure rcode.
 	if !removeResolvedName {
 		// Iterate through the associated IP addresses of the resolved name, and update the TTLs and the last
 		// lookup times of the IP addresses which have expired.
@@ -702,15 +703,14 @@ func checkAndUpdateResolvedName(
 					Message:            rcodeMessage[rcode],
 				},
 			}
-			statusUpdated = true
 		} else if newResolverObj.Status.ResolvedNames[index].Conditions[0].Status != metav1.ConditionTrue ||
 			newResolverObj.Status.ResolvedNames[index].Conditions[0].Reason != dns.RcodeToString[rcode] {
 			newResolverObj.Status.ResolvedNames[index].Conditions[0].Status = metav1.ConditionTrue
 			newResolverObj.Status.ResolvedNames[index].Conditions[0].LastTransitionTime = currentTime
 			newResolverObj.Status.ResolvedNames[index].Conditions[0].Reason = dns.RcodeToString[rcode]
 			newResolverObj.Status.ResolvedNames[index].Conditions[0].Message = rcodeMessage[rcode]
-			statusUpdated = true
 		}
+		statusUpdated = true
 	}
 
 	return removeResolvedName, statusUpdated
