@@ -2395,9 +2395,9 @@ func TestServeDNS(t *testing.T) {
 			// Iterate through the DNSNameResolver objects.
 			for objIndex, dnsNameResolver := range dnstc.dnsNameResolvers {
 
-				// If any resolved address exists in the status then update the LastLookup field to current time.
-				// This is done to ensure that the logic checking the next lookup time does not encounter any error
-				// and calculates it correctly.
+				// If any resolved address exists in the status then update the LastLookup field by subtracting the
+				// time since last lookup from the current time. This is done to ensure that the logic checking the
+				// next lookup time does not encounter any error and calculates it correctly.
 				for resolvedNameIndex, resolvedName := range dnsNameResolver.Status.ResolvedNames {
 					for resolvedAddressIndex := range resolvedName.ResolvedAddresses {
 						resolvedName.ResolvedAddresses[resolvedAddressIndex].LastLookupTime = &metav1.Time{
