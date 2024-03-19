@@ -2280,7 +2280,7 @@ var dnsTestCases []dnsTestCase = []dnsTestCase{
 		},
 	},
 	{
-		name: " Same wildcard DNS name in multiple namespaces",
+		name: "Same wildcard DNS name in multiple namespaces",
 		dnsNameResolvers: []ocpnetworkapiv1alpha1.DNSNameResolver{
 			{
 				ObjectMeta: metav1.ObjectMeta{
