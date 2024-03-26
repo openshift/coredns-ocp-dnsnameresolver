@@ -1,0 +1,27 @@
+# permissions for end users to view dnsnameresolvers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: dnsnameresolver-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: operator
+    app.kubernetes.io/part-of: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: dnsnameresolver-viewer-role
+rules:
+- apiGroups:
+  - network.openshift.io.openshift.io
+  resources:
+  - dnsnameresolvers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - network.openshift.io.openshift.io
+  resources:
+  - dnsnameresolvers/status
+  verbs:
+  - get
