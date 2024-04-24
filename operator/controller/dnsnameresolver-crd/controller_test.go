@@ -250,7 +250,7 @@ func TestReconcileOnlyStartsControllerOnce(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
 	select {
 	case <-fCacheWithStartAndSync.syncNotificationChan:
-		t.Error("cache WaitForCacheSync() was called again for the second reconcile request")
+		t.Error("cache Start() was called again for the second reconcile request")
 	case <-ctx.Done():
 		t.Log(ctx.Err())
 	}
@@ -390,7 +390,7 @@ func (fcache *fakeCacheWithStartAndSync) Start(ctx context.Context) error {
 
 func (fcache *fakeCacheWithStartAndSync) WaitForCacheSync(ctx context.Context) bool {
 	if fcache.synced {
-		fcache.T.Fatal("cache was syced twice!")
+		fcache.T.Fatal("cache was synced twice!")
 	}
 	fcache.synced = true
 	if fcache.syncNotificationChan != nil {

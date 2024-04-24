@@ -12,7 +12,8 @@ after a grace period.
 To test the unmanaged DNSNameResolver controller, the operator runs another controller which
 watches the DNSNameResolver CRD and starts the DNSNameResolver controller.
 
-Kindly provide correct values for the following arguments when deploying the operator:
+Kindly provide correct values for the following arguments using the `args` field of the `manager`
+container in the [`manager.yaml`](./config/manager/manager.yaml) when deploying the operator:
 - `coredns-namespace`
 - `coredns-service-name`
 - `dns-name-resolver-namespace`

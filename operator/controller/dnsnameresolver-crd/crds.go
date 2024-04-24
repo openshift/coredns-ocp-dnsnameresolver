@@ -92,13 +92,11 @@ func (r *reconciler) updateCRD(
 	ctx context.Context,
 	current, desired *apiextensionsv1.CustomResourceDefinition,
 ) (bool, error) {
-	changed, updated := crdChanged(current, desired)
+	changed, diff, updated := crdChanged(current, desired)
 	if !changed {
 		return false, nil
 	}
 
-	// Diff before updating because the client may mutate the object.
-	diff := cmp.Diff(current, updated, cmpopts.EquateEmpty())
 	if err := r.client.Update(ctx, updated); err != nil {
 		return false, fmt.Errorf("failed to update CRD %s: %w", updated.Name, err)
 	}
@@ -110,18 +108,19 @@ func (r *reconciler) updateCRD(
 // the expected spec and if not returns an updated one.
 func crdChanged(
 	current, expected *apiextensionsv1.CustomResourceDefinition,
-) (bool, *apiextensionsv1.CustomResourceDefinition) {
+) (bool, string, *apiextensionsv1.CustomResourceDefinition) {
 	crdCmpOpts := []cmp.Option{
 		// Ignore fields that the API may have modified.
 		cmpopts.IgnoreFields(apiextensionsv1.CustomResourceDefinitionSpec{}, "Conversion"),
 		cmpopts.EquateEmpty(),
 	}
-	if cmp.Equal(current.Spec, expected.Spec, crdCmpOpts...) {
-		return false, nil
+	diff := cmp.Diff(current.Spec, expected.Spec, crdCmpOpts...)
+	if diff == "" {
+		return false, "", nil
 	}
 
 	updated := current.DeepCopy()
 	updated.Spec = expected.Spec
 
-	return true, updated
+	return true, diff, updated
 }

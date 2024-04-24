@@ -53,17 +53,20 @@ func NewResolver(cache cache.Cache, serviceName string) *Resolver {
 		dnsNames:                  make(map[string]dnsResolvedName),
 		regularObjInfo:            make(map[string]string),
 		wildcardObjInfo:           make(map[string]sets.Set[string]),
-		added:                     make(chan struct{}, 1),
-		deleted:                   make(chan string, 1),
+		added:                     make(chan struct{}),
+		deleted:                   make(chan string),
 	}
 }
 
 // Start starts a goroutine for sending DNS lookup requests of the DNS names on expiration of the corresponding TTLs.
-func (res *Resolver) Start() {
-	var nextDNSName, deletedDNSName string
-	var nextLookupTime time.Time
-	var exists bool
-	var numIPs int
+func (resolver *Resolver) Start() {
+	var (
+		nextDNSName    string
+		deletedDNSName string
+		nextLookupTime time.Time
+		exists         bool
+		numIPs         int
+	)
 	// Initially the check for nextDNSName to be looked up will happen after default maximum TTL. If a DNS name
 	// gets added before that then the nextDNSName and timeTillNextLookup will be updated.
 	timeTillNextLookup := defaultMaxTTL
@@ -72,18 +75,18 @@ func (res *Resolver) Start() {
 		defer timer.Stop()
 		for {
 			select {
-			case <-res.added:
+			case <-resolver.added:
 				// Whenever DNS name(s) are added or updated, the nextDNSName and timeTillNextLookup
 				// needs to be updated.
 			case <-timer.C:
 				// After every tick, DNS lookup needs to be performed for nextDNSName, if it is not empty.
 				// The nextDNSName and timeTillNextLookup also needs to be updated.
 				if len(nextDNSName) > 0 {
-					if err := res.lookupDNSName(nextDNSName, numIPs); err != nil {
+					if err := resolver.lookupDNSNameFromCoreDNS(nextDNSName, numIPs); err != nil {
 						controllerLog.Info("Warning: Encountered error while looking up DNS name", "DNS name", nextDNSName, "Error", err)
 					}
 				}
-			case deletedDNSName = <-res.deleted:
+			case deletedDNSName = <-resolver.deleted:
 				// If the deleted DNS name is the DNS name that will be looked up next, then
 				// the nextDNSName and timeTillNextLookup needs to be updated. If another
 				// DNS name is deleted then nothing is needed to be done.
@@ -93,7 +96,7 @@ func (res *Resolver) Start() {
 			}
 			// Get the DNS name whose TTL will expire first. Based on the nextLookupTime for the nextDNSName,
 			// the timeTillNextLookup will be updated appropriately.
-			nextDNSName, nextLookupTime, numIPs, exists = res.getNextDNSNameDetails()
+			nextDNSName, nextLookupTime, numIPs, exists = resolver.getNextDNSNameDetails()
 			remainingDuration := time.Until(nextLookupTime)
 			if !exists || remainingDuration > defaultMaxTTL {
 				// If no DNS name is found OR If the remaining duration is greater than default maximum TTL, then perform DNS lookup
@@ -113,17 +116,17 @@ func (res *Resolver) Start() {
 }
 
 // Add is called whenever a DNSNameResolver object is added or updated.
-func (res *Resolver) Add(
+func (resolver *Resolver) Add(
 	dnsName string,
 	resolvedAddresses []networkv1alpha1.DNSNameResolverResolvedAddress,
 	matchesRegular bool,
 	objName string,
 ) {
-	res.dnsLock.Lock()
-	defer res.dnsLock.Unlock()
+	resolver.dnsLock.Lock()
+	defer resolver.dnsLock.Unlock()
 
 	// Get the details of the resolved name corresponding to the DNS name, if it exists.
-	resolvedName, exists := res.dnsNames[dnsName]
+	resolvedName, exists := resolver.dnsNames[dnsName]
 
 	// If the resolved name corresponding to the DNS name exists, ensure that the DNSNameResolver
 	// object matches the existing information. Otherwise, don't proceed.
@@ -132,7 +135,7 @@ func (res *Resolver) Add(
 			// If the DNSNameResolver object for the regular DNS name object exists and the
 			// current Add call is also for an object corresponding to a regular DNS name,
 			// then check if the existing DNS name matches the current one.
-			matchingDNSName, found := res.regularObjInfo[objName]
+			matchingDNSName, found := resolver.regularObjInfo[objName]
 			if !found || dnsName != matchingDNSName {
 				return
 			}
@@ -141,7 +144,7 @@ func (res *Resolver) Add(
 			// current Add call is also for an object corresponding to a wildcard DNS name,
 			// then check if the current DNS name exists in the set of DNS names matching the
 			// wildcard DNS name.
-			dnsNamesMatchingWildcard, found := res.wildcardObjInfo[objName]
+			dnsNamesMatchingWildcard, found := resolver.wildcardObjInfo[objName]
 			if !found || !dnsNamesMatchingWildcard.Has(dnsName) {
 				return
 			}
@@ -155,7 +158,7 @@ func (res *Resolver) Add(
 		// request for the DNS name.
 		if !exists {
 			resolvedName.minNextLookupTime = time.Now().Add(defaultMaxTTL)
-			go res.lookupDNSName(dnsName, 0)
+			go resolver.lookupDNSNameFromCoreDNS(dnsName, 0)
 		}
 	} else {
 		// If some IP addresses are associated with the DNS name, then determine the minimum
@@ -182,59 +185,59 @@ func (res *Resolver) Add(
 	// corresponding to the DNSNameResolver object name in the wildcardObjInfo map.
 	if matchesRegular {
 		resolvedName.regularObjExists = true
-		res.regularObjInfo[objName] = dnsName
+		resolver.regularObjInfo[objName] = dnsName
 	} else {
 		resolvedName.wildcardObjExists = true
-		dnsNamesMatchingWildcard, exists := res.wildcardObjInfo[objName]
+		dnsNamesMatchingWildcard, exists := resolver.wildcardObjInfo[objName]
 		if !exists {
 			dnsNamesMatchingWildcard = sets.New[string]()
 		}
 		dnsNamesMatchingWildcard.Insert(dnsName)
-		res.wildcardObjInfo[objName] = dnsNamesMatchingWildcard
+		resolver.wildcardObjInfo[objName] = dnsNamesMatchingWildcard
 	}
 
 	// Add the updated resolved name to the dnsNames map corresponding to the DNS name.
-	res.dnsNames[dnsName] = resolvedName
+	resolver.dnsNames[dnsName] = resolvedName
 
 	// Send a signal to the added channel indicating that details corresponding to a DNS
 	// name have been added or updated.
-	res.added <- struct{}{}
+	resolver.added <- struct{}{}
 }
 
 // Delete is called whenever a DNSNameResolver object is deleted.
-func (res *Resolver) Delete(objName string) {
-	res.dnsLock.Lock()
-	defer res.dnsLock.Unlock()
+func (resolver *Resolver) Delete(objName string) {
+	resolver.dnsLock.Lock()
+	defer resolver.dnsLock.Unlock()
 
 	var matchesRegular bool
 	dnsNameList := []string{}
 
-	regularDNSName, regularExists := res.regularObjInfo[objName]
+	regularDNSName, regularExists := resolver.regularObjInfo[objName]
 	if regularExists {
 		// Check if the deleted object was for a regular DNS name. If so, add the DNS name
 		// to dnsNameList slice. Additionally, remove the corresponding entry of the object
 		// from regularObjInfo map.
 		matchesRegular = true
 		dnsNameList = append(dnsNameList, regularDNSName)
-		delete(res.regularObjInfo, objName)
+		delete(resolver.regularObjInfo, objName)
 	} else {
 		// If the deleted object was not for a regular DNS name, then check if the deleted
 		// object was for a wildcard DNS name. If so, add the DNS names matching the wildcard
 		// DNS name to dnsNameList slice. Additionally, remove the corresponding entry of the
 		// object from wildcardObjInfo map.
-		wildcardDNSNames, wildcardExists := res.wildcardObjInfo[objName]
+		wildcardDNSNames, wildcardExists := resolver.wildcardObjInfo[objName]
 		if !wildcardExists {
 			return
 		}
 		dnsNameList = append(dnsNameList, wildcardDNSNames.UnsortedList()...)
-		delete(res.wildcardObjInfo, objName)
+		delete(resolver.wildcardObjInfo, objName)
 		matchesRegular = false
 	}
 
 	// Iterate through the dnsNameList slice.
 	for _, dnsName := range dnsNameList {
 		// Get the resolved name details corresponding to the DNS name.
-		resolvedName, exists := res.dnsNames[dnsName]
+		resolvedName, exists := resolver.dnsNames[dnsName]
 		// If the corresponding resolved name details is not found,
 		// continue with the next DNS name.
 		if !exists {
@@ -258,10 +261,10 @@ func (res *Resolver) Delete(objName string) {
 		// deleted. Otherwise, add the updated resolved name to the dnsNames map
 		// corresponding to the DNS name.
 		if !resolvedName.regularObjExists && !resolvedName.wildcardObjExists {
-			delete(res.dnsNames, dnsName)
-			res.deleted <- dnsName
+			delete(resolver.dnsNames, dnsName)
+			resolver.deleted <- dnsName
 		} else {
-			res.dnsNames[dnsName] = resolvedName
+			resolver.dnsNames[dnsName] = resolvedName
 		}
 	}
 }
@@ -270,16 +273,16 @@ func (res *Resolver) Delete(objName string) {
 // It also returns the next lookup time and the number of IP addresses
 // associated with the DNS name. If no such DNS name exists, then false is
 // returned, otherwise true is returned.
-func (res *Resolver) getNextDNSNameDetails() (string, time.Time, int, bool) {
-	res.dnsLock.Lock()
-	defer res.dnsLock.Unlock()
+func (resolver *Resolver) getNextDNSNameDetails() (string, time.Time, int, bool) {
+	resolver.dnsLock.Lock()
+	defer resolver.dnsLock.Unlock()
 
 	exists := false
 	var minNextLookupTime time.Time
 	var dns string
 	var numIPs int
 
-	for dnsName, resolvedName := range res.dnsNames {
+	for dnsName, resolvedName := range resolver.dnsNames {
 		if !exists || resolvedName.minNextLookupTime.Before(minNextLookupTime) {
 			exists = true
 			minNextLookupTime = resolvedName.minNextLookupTime
@@ -290,9 +293,9 @@ func (res *Resolver) getNextDNSNameDetails() (string, time.Time, int, bool) {
 	return dns, minNextLookupTime, numIPs, exists
 }
 
-// lookupDNSName sends a DNS lookup request to CoreDNS pod(s). The DNS lookup is performed to
+// lookupDNSNameFromCoreDNS sends a DNS lookup request to CoreDNS pod(s). The DNS lookup is performed to
 // trigger an update, if required, of the DNSNameResolver resources matching the DNS name.
-func (res *Resolver) lookupDNSName(dnsName string, numIPs int) error {
+func (resolver *Resolver) lookupDNSNameFromCoreDNS(dnsName string, numIPs int) error {
 	// By default, the DNS lookup request will be sent to maxCoreDNSPodIPs number of CoreDNS
 	// pods.
 	numCoreDNSPodIPs := maxCoreDNSPodIPs
@@ -303,9 +306,13 @@ func (res *Resolver) lookupDNSName(dnsName string, numIPs int) error {
 	}
 
 	// Get the randomly chosen CoreDNS pod IPs.
-	coreDNSPodIPs, err := res.getRandomCoreDNSPodIP(numCoreDNSPodIPs)
+	coreDNSPodIPs, err := resolver.getRandomCoreDNSPodIPs(numCoreDNSPodIPs)
 	if err != nil {
 		return err
+	}
+
+	dnsClient := &dns.Client{
+		Timeout: defaultMinTTL,
 	}
 
 	// Send the DNS lookup request to the CoreDNS pods for both A and AAAA type DNS records.
@@ -314,9 +321,6 @@ func (res *Resolver) lookupDNSName(dnsName string, numIPs int) error {
 			dnsMsg := &dns.Msg{}
 			dnsMsg.SetQuestion(dns.Fqdn(dnsName), recordType)
 			serverStr := net.JoinHostPort(coreDNSPodIP, defaultPort)
-			dnsClient := &dns.Client{
-				Timeout: defaultMinTTL,
-			}
 			if _, _, err := dnsClient.Exchange(dnsMsg, serverStr); err != nil {
 				controllerLog.Info(fmt.Sprintf("Failed to lookup DNS name: %s from CoreDNS pod with IP: %s, err: %s", dnsName, coreDNSPodIP, err))
 			}
@@ -325,12 +329,12 @@ func (res *Resolver) lookupDNSName(dnsName string, numIPs int) error {
 	return nil
 }
 
-// getRandomCoreDNSPodIP returns randomly chosen CoreDNS pod IPs. The input maxIPs defines
+// getRandomCoreDNSPodIPs returns randomly chosen CoreDNS pod IPs. The input maxIPs defines
 // the upper limit for the number of CoreDNS pod IPs returned.
-func (res *Resolver) getRandomCoreDNSPodIP(maxIPs int) ([]string, error) {
+func (resolver *Resolver) getRandomCoreDNSPodIPs(maxIPs int) ([]string, error) {
 	// List all the CoreDNS pod endpointslices.
 	epList := &discoveryv1.EndpointSliceList{}
-	if err := res.corednsEndpointSliceCache.List(context.Background(), epList, &client.ListOptions{}); err != nil {
+	if err := resolver.corednsEndpointSliceCache.List(context.Background(), epList, &client.ListOptions{}); err != nil {
 		return nil, err
 	}
 
@@ -351,7 +355,6 @@ func (res *Resolver) getRandomCoreDNSPodIP(maxIPs int) ([]string, error) {
 	}
 
 	var randomIPs []string
-	r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	if len(ips) <= maxIPs {
 		// If the number of CoreDNS pod IPs is less than equal to maxIPs,
@@ -365,6 +368,7 @@ func (res *Resolver) getRandomCoreDNSPodIP(maxIPs int) ([]string, error) {
 			// it to the randomIPs slice. Then replace the element present
 			// at the randomly selected index with the last element of the
 			// ips slice and reduce the length of the ips slice by 1.
+			r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
 			len := len(ips)
 			index := r1.Intn(len)
 			randomIPs = append(randomIPs, ips[index])

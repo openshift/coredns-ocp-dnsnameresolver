@@ -7,7 +7,6 @@ import (
 	"github.com/openshift/coredns-ocp-dnsnameresolver/operator/pkg/manifests"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,12 +38,7 @@ func New(mgr manager.Manager, config Config) (controller.Controller, error) {
 		return nil, err
 	}
 	clusterNamePredicate := predicate.NewPredicateFuncs(func(o client.Object) bool {
-		crd := manifests.DNSNameResolverCRD().DeepCopy()
-		expectedName := types.NamespacedName{Name: crd.Name}
-		actualName := types.NamespacedName{
-			Name: o.GetName(),
-		}
-		return expectedName == actualName
+		return manifests.DNSNameResolverCRD().Name == o.GetName()
 	})
 	if err := c.Watch(source.Kind(mgr.GetCache(), &apiextensionsv1.CustomResourceDefinition{}),
 		&handler.EnqueueRequestForObject{}, clusterNamePredicate); err != nil {
@@ -104,14 +98,16 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 			// Wait for the dependent cache to sync.
 			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				if started := (*cache).WaitForCacheSync(ctx); !started {
 					controllerLog.Info("failed to sync cache before starting controllers")
 				}
-				wg.Done()
 			}()
 		}
 		// Wait for all the dependent caches to sync.
 		wg.Wait()
+
+		controllerLog.Info("dependent caches synced")
 	})
 
 	// Start the dependent controllers after the dependent caches have synced.
@@ -126,6 +122,8 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 				}
 			}()
 		}
+
+		controllerLog.Info("dependent controllers started")
 	})
 
 	return reconcile.Result{}, nil

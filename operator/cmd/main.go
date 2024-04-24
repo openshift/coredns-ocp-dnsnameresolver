@@ -124,9 +124,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set up the DNSNameResolver controller.  This controller is unmanaged by
-	// the manager; the dnsnameresolvercrd controller starts it and the
-	// caches after it creates the DNSNameResolver CRD.
+	// Set up the DNSNameResolver controller. This controller is unmanaged by
+	// the manager. The reason why the controller is unmanaged is so that it
+	// doesn't get automatically started when the operator starts; we only
+	// want the controller to start if we need it. The dnsnameresolvercrd
+	// controller starts it and the caches after it creates the
+	// DNSNameResolver CRD.
 	dnsNameResolverController, dnsNameResolverControllerCaches, err :=
 		dnsnameresolver.NewUnmanaged(mgr, dnsnameresolver.Config{
 			OperandNamespace:         coreDNSNamespace,
