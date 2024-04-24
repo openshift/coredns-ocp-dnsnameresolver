@@ -1,0 +1,31 @@
+# permissions for end users to edit dnsnameresolvers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: dnsnameresolver-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: operator
+    app.kubernetes.io/part-of: operator
+    app.kubernetes.io/managed-by: kustomize
+  name: dnsnameresolver-editor-role
+rules:
+- apiGroups:
+  - network.openshift.io.openshift.io
+  resources:
+  - dnsnameresolvers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - network.openshift.io.openshift.io
+  resources:
+  - dnsnameresolvers/status
+  verbs:
+  - get
