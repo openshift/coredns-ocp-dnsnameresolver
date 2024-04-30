@@ -1,7 +1,6 @@
 package dnsnameresolver
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -245,33 +244,20 @@ func TestResolver(t *testing.T) {
 					// Get the parameters for the Add action.
 					params := tc.parameters[i].(*addParams)
 
-					// Call Add with the parameters in a separate goroutine.
-					go resolver.Add(params.dnsName, params.resolvedAddresses, params.matchesRegular, params.objName)
+					// Call Add with the parameters.
+					resolver.add(dnsDetails{
+						dnsName:           params.dnsName,
+						resolvedAddresses: params.resolvedAddresses,
+						matchesRegular:    params.matchesRegular,
+						objName:           params.objName,
+					})
 
-					// Wait for the signal on the res.added channel.
-					<-resolver.added
 				case "Delete":
 					// Get the parameters for the Delete action.
 					params := tc.parameters[i].(*deleteParams)
 
-					// Call Delete with the parameters in a separate goroutine. Use wait group to wait for the
-					// call to complete.
-					var wg sync.WaitGroup
-					wg.Add(1)
-					go func() {
-						resolver.Delete(params.objName)
-						wg.Done()
-					}()
-
-					// If DNS names are removed then wait for the signals on the res.deleted channel.
-					if params.isDNSNameRemoved {
-						for i := 0; i < params.numRemoved; i++ {
-							<-resolver.deleted
-						}
-					}
-
-					// Wait for the Delete call to complete.
-					wg.Wait()
+					// Call delete with the parameters.
+					resolver.delete(dnsDetails{objName: params.objName})
 				default:
 					assert.FailNow(t, "unknown action")
 				}

@@ -127,7 +127,7 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		// Check if the DNSNameResolver resource is deleted. If so, delete DNS names matching the DNSNameResolver resource
 		// from the resolver.
 		if errors.IsNotFound(err) {
-			r.resolver.Delete(request.Name)
+			r.resolver.DeleteResolvedName(dnsDetails{objName: request.Name})
 			return reconcile.Result{}, nil
 		}
 
@@ -161,12 +161,22 @@ func (r *reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 	// event then this will ensure that the resolver sends the resolution request
 	// for the DNS name, so that the status of the object gets updated with the
 	// corresponding IP addresses.
-	r.resolver.Add(dnsName, []ocpnetworkv1alpha1.DNSNameResolverResolvedAddress{}, matchesRegular, request.Name)
+	r.resolver.AddResolvedName(dnsDetails{
+		dnsName:           dnsName,
+		resolvedAddresses: []ocpnetworkv1alpha1.DNSNameResolverResolvedAddress{},
+		matchesRegular:    matchesRegular,
+		objName:           request.Name,
+	})
 
 	// Iterate through each of the resolved names matching the DNS name and add
 	// them to the resolver along with the current IP addresses.
 	for _, resolvedName := range dnsNameResolver.Status.ResolvedNames {
-		r.resolver.Add(string(resolvedName.DNSName), resolvedName.ResolvedAddresses, matchesRegular, request.Name)
+		r.resolver.AddResolvedName(dnsDetails{
+			dnsName:           string(resolvedName.DNSName),
+			resolvedAddresses: resolvedName.ResolvedAddresses,
+			matchesRegular:    matchesRegular,
+			objName:           request.Name,
+		})
 	}
 
 	return reconcile.Result{}, nil
