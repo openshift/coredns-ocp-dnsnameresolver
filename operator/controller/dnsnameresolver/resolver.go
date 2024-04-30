@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
-	networkv1alpha1 "github.com/openshift/api/network/v1alpha1"
+	ocpnetworkv1alpha1 "github.com/openshift/api/network/v1alpha1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -19,7 +19,6 @@ import (
 const (
 	defaultMaxTTL    = 30 * time.Minute
 	defaultMinTTL    = 5 * time.Second
-	defaultPort      = "53"
 	maxCoreDNSPodIPs = 5
 )
 
@@ -35,8 +34,8 @@ type dnsResolvedName struct {
 // requests to CoreDNS pods whenever TTL of any IP address associated to a DNS name expires.
 type Resolver struct {
 	corednsEndpointSliceCache cache.Cache
-	serviceName               string
-	dnsNames                  map[string]dnsResolvedName
+	port                      string
+	dnsNames                  map[string]*dnsResolvedName
 	regularObjInfo            map[string]string
 	wildcardObjInfo           map[string]sets.Set[string]
 	dnsLock                   sync.Mutex
@@ -46,11 +45,11 @@ type Resolver struct {
 }
 
 // NewResolver initializes and returns a new resolver instance.
-func NewResolver(cache cache.Cache, serviceName string) *Resolver {
+func NewResolver(cache cache.Cache, port string) *Resolver {
 	return &Resolver{
 		corednsEndpointSliceCache: cache,
-		serviceName:               serviceName,
-		dnsNames:                  make(map[string]dnsResolvedName),
+		port:                      port,
+		dnsNames:                  make(map[string]*dnsResolvedName),
 		regularObjInfo:            make(map[string]string),
 		wildcardObjInfo:           make(map[string]sets.Set[string]),
 		added:                     make(chan struct{}),
@@ -118,12 +117,11 @@ func (resolver *Resolver) Start() {
 // Add is called whenever a DNSNameResolver object is added or updated.
 func (resolver *Resolver) Add(
 	dnsName string,
-	resolvedAddresses []networkv1alpha1.DNSNameResolverResolvedAddress,
+	resolvedAddresses []ocpnetworkv1alpha1.DNSNameResolverResolvedAddress,
 	matchesRegular bool,
 	objName string,
 ) {
 	resolver.dnsLock.Lock()
-	defer resolver.dnsLock.Unlock()
 
 	// Get the details of the resolved name corresponding to the DNS name, if it exists.
 	resolvedName, exists := resolver.dnsNames[dnsName]
@@ -137,6 +135,7 @@ func (resolver *Resolver) Add(
 			// then check if the existing DNS name matches the current one.
 			matchingDNSName, found := resolver.regularObjInfo[objName]
 			if !found || dnsName != matchingDNSName {
+				resolver.dnsLock.Unlock()
 				return
 			}
 		} else if resolvedName.wildcardObjExists && !matchesRegular {
@@ -146,9 +145,15 @@ func (resolver *Resolver) Add(
 			// wildcard DNS name.
 			dnsNamesMatchingWildcard, found := resolver.wildcardObjInfo[objName]
 			if !found || !dnsNamesMatchingWildcard.Has(dnsName) {
+				resolver.dnsLock.Unlock()
 				return
 			}
 		}
+	} else {
+		resolvedName = &dnsResolvedName{}
+
+		// Add the updated resolved name to the dnsNames map corresponding to the DNS name.
+		resolver.dnsNames[dnsName] = resolvedName
 	}
 
 	if len(resolvedAddresses) == 0 {
@@ -196,18 +201,17 @@ func (resolver *Resolver) Add(
 		resolver.wildcardObjInfo[objName] = dnsNamesMatchingWildcard
 	}
 
-	// Add the updated resolved name to the dnsNames map corresponding to the DNS name.
-	resolver.dnsNames[dnsName] = resolvedName
+	resolver.dnsLock.Unlock()
 
 	// Send a signal to the added channel indicating that details corresponding to a DNS
 	// name have been added or updated.
 	resolver.added <- struct{}{}
+
 }
 
 // Delete is called whenever a DNSNameResolver object is deleted.
 func (resolver *Resolver) Delete(objName string) {
 	resolver.dnsLock.Lock()
-	defer resolver.dnsLock.Unlock()
 
 	var matchesRegular bool
 	dnsNameList := []string{}
@@ -227,6 +231,7 @@ func (resolver *Resolver) Delete(objName string) {
 		// object from wildcardObjInfo map.
 		wildcardDNSNames, wildcardExists := resolver.wildcardObjInfo[objName]
 		if !wildcardExists {
+			resolver.dnsLock.Unlock()
 			return
 		}
 		dnsNameList = append(dnsNameList, wildcardDNSNames.UnsortedList()...)
@@ -234,8 +239,10 @@ func (resolver *Resolver) Delete(objName string) {
 		matchesRegular = false
 	}
 
+	deletedDNSNames := []string{}
 	// Iterate through the dnsNameList slice.
 	for _, dnsName := range dnsNameList {
+
 		// Get the resolved name details corresponding to the DNS name.
 		resolvedName, exists := resolver.dnsNames[dnsName]
 		// If the corresponding resolved name details is not found,
@@ -262,10 +269,13 @@ func (resolver *Resolver) Delete(objName string) {
 		// corresponding to the DNS name.
 		if !resolvedName.regularObjExists && !resolvedName.wildcardObjExists {
 			delete(resolver.dnsNames, dnsName)
-			resolver.deleted <- dnsName
-		} else {
-			resolver.dnsNames[dnsName] = resolvedName
+			deletedDNSNames = append(deletedDNSNames, dnsName)
 		}
+	}
+	resolver.dnsLock.Unlock()
+
+	for _, dnsName := range deletedDNSNames {
+		resolver.deleted <- dnsName
 	}
 }
 
@@ -293,7 +303,7 @@ func (resolver *Resolver) getNextDNSNameDetails() (string, time.Time, int, bool)
 	return dns, minNextLookupTime, numIPs, exists
 }
 
-// lookupDNSNameFromCoreDNS sends a DNS lookup request to CoreDNS pod(s). The DNS lookup is performed to
+// lookupDNSNameFromCoreDNS sends DNS lookup request(s) to CoreDNS pod(s). The DNS lookup is performed to
 // trigger an update, if required, of the DNSNameResolver resources matching the DNS name.
 func (resolver *Resolver) lookupDNSNameFromCoreDNS(dnsName string, numIPs int) error {
 	// By default, the DNS lookup request will be sent to maxCoreDNSPodIPs number of CoreDNS
@@ -318,15 +328,21 @@ func (resolver *Resolver) lookupDNSNameFromCoreDNS(dnsName string, numIPs int) e
 	// Send the DNS lookup request to the CoreDNS pods for both A and AAAA type DNS records.
 	for _, recordType := range []uint16{dns.TypeA, dns.TypeAAAA} {
 		for _, coreDNSPodIP := range coreDNSPodIPs {
-			dnsMsg := &dns.Msg{}
-			dnsMsg.SetQuestion(dns.Fqdn(dnsName), recordType)
-			serverStr := net.JoinHostPort(coreDNSPodIP, defaultPort)
-			if _, _, err := dnsClient.Exchange(dnsMsg, serverStr); err != nil {
+			if _, _, err := sendDNSLookupRequest(dnsClient, coreDNSPodIP, resolver.port, dnsName, recordType); err != nil {
 				controllerLog.Info(fmt.Sprintf("Failed to lookup DNS name: %s from CoreDNS pod with IP: %s, err: %s", dnsName, coreDNSPodIP, err))
 			}
 		}
 	}
 	return nil
+}
+
+// sendDNSLookupRequest sends the DNS lookup request for the dnsName to the DNS server on serverIP:serverPort
+// using the dnsClient for DNS record type recordType.
+func sendDNSLookupRequest(dnsClient *dns.Client, serverIP, serverPort, dnsName string, recordType uint16) (*dns.Msg, time.Duration, error) {
+	dnsMsg := &dns.Msg{}
+	dnsMsg.SetQuestion(dns.Fqdn(dnsName), recordType)
+	serverStr := net.JoinHostPort(serverIP, serverPort)
+	return dnsClient.Exchange(dnsMsg, serverStr)
 }
 
 // getRandomCoreDNSPodIPs returns randomly chosen CoreDNS pod IPs. The input maxIPs defines

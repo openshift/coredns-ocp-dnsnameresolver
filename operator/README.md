@@ -13,9 +13,12 @@ To test the unmanaged DNSNameResolver controller, the operator runs another cont
 watches the DNSNameResolver CRD and starts the DNSNameResolver controller.
 
 Kindly provide correct values for the following arguments using the `args` field of the `manager`
-container in the [`manager.yaml`](./config/manager/manager.yaml) when deploying the operator:
+container in the [`manager.yaml`](./config/manager/manager.yaml) when deploying the operator
+OR in the [`manager_auth_proxy_patch.yaml`](./config/default/manager_auth_proxy_patch.yaml)
+if `make deploy` is used to deploy the operator:
 - `coredns-namespace`
 - `coredns-service-name`
+- `coredns-port`
 - `dns-name-resolver-namespace`
 
 ## Getting Started
@@ -30,7 +33,7 @@ container in the [`manager.yaml`](./config/manager/manager.yaml) when deploying 
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/operator:tag
+make image-build image-push IMG=<some-registry>/operator:tag
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified. 
@@ -54,7 +57,7 @@ make deploy IMG=<some-registry>/operator:tag
 ### To Uninstall
 ```
 
-**UnDeploy the operator from the cluster:**
+**Undeploy the operator from the cluster:**
 
 ```sh
 make undeploy

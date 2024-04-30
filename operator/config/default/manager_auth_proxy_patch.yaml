@@ -37,3 +37,7 @@ spec:
         - "--health-probe-bind-address=:8081"
         - "--metrics-bind-address=127.0.0.1:8080"
         - "--leader-elect"
+        - --coredns-namespace=openshift-dns
+        - --coredns-service-name=dns-default
+        - --dns-name-resolver-namespace=openshift-ovn-kubernetes
+        - --coredns-port=5353

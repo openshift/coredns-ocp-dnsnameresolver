@@ -34,13 +34,12 @@ var (
 type Config struct {
 	OperandNamespace         string
 	ServiceName              string
+	DNSPort                  string
 	DNSNameResolverNamespace string
 }
 
 // reconciler handles the actual DNSNameResolver reconciliation logic in response to events.
 type reconciler struct {
-	config Config
-
 	dnsNameResolverCache cache.Cache
 	client               client.Client
 	resolver             *Resolver
@@ -82,10 +81,9 @@ func NewUnmanaged(mgr manager.Manager, config Config) (controller.Controller, []
 
 	// Initialize the reconciler.
 	reconciler := &reconciler{
-		config:               config,
 		dnsNameResolverCache: dnsNameResolverCache,
 		client:               mgr.GetClient(),
-		resolver:             NewResolver(corednsEndpointsSliceCache, config.ServiceName),
+		resolver:             NewResolver(corednsEndpointsSliceCache, config.DNSPort),
 	}
 
 	// Create an unmanaged controller using the reconciler.
