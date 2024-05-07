@@ -30,6 +30,7 @@ rules:
   resources:
   - dnsnameresolvers
   verbs:
+  - get
   - list
   - watch
 
@@ -39,6 +40,8 @@ rules:
   - dnsnameresolvers/status
   verbs:
   - update
+  - get
+  - patch
 
 - apiGroups:
   - discovery.k8s.io

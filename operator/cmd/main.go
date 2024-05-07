@@ -64,6 +64,7 @@ func main() {
 		enableHTTP2              bool
 		coreDNSNamespace         string
 		coreDNSServieName        string
+		coreDNSPort              string
 		dnsNameResolverNamespace string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
@@ -77,6 +78,7 @@ func main() {
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.StringVar(&coreDNSNamespace, "coredns-namespace", "kube-system", "The namespace of the CoreDNS resources.")
 	flag.StringVar(&coreDNSServieName, "coredns-service-name", "kube-dns", "The name of the CoreDNS service.")
+	flag.StringVar(&coreDNSPort, "coredns-port", "53", "The port on which the CoreDNS pods are listening.")
 	flag.StringVar(&dnsNameResolverNamespace, "dns-name-resolver-namespace", "ovn-kubernetes",
 		"The namespace to watch for the DNSNameResolver objects.")
 	opts := zap.Options{
@@ -134,6 +136,7 @@ func main() {
 		dnsnameresolver.NewUnmanaged(mgr, dnsnameresolver.Config{
 			OperandNamespace:         coreDNSNamespace,
 			ServiceName:              coreDNSServieName,
+			DNSPort:                  coreDNSPort,
 			DNSNameResolverNamespace: dnsNameResolverNamespace,
 		})
 	if err != nil {
