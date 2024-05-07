@@ -15,7 +15,7 @@ else
 # those DNS queries which are not cached and a fresh lookup is needed. Whenever the cache plugin isn't able
 # to handle a DNS query, it means the upstream DNS server is needed to be invoked. This plugin will use the
 # new information received from the upstream servers to update the corresponding DNSNameResolver CRs.
-    sed -i "/cache:cache/a ocp_dnsnameresolver:github.com/openshift/coredns-ocp-dnsnameresolver" "${COREDNS_PATH}"/plugin.cfg
+    sed -i "/cache:cache/i ocp_dnsnameresolver:github.com/openshift/coredns-ocp-dnsnameresolver" "${COREDNS_PATH}"/plugin.cfg
 fi
 
 cd "${COREDNS_PATH}"
