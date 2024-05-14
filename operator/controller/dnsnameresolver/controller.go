@@ -23,8 +23,7 @@ import (
 
 const (
 	ipRemovalGracePeriod = time.Second * 5
-
-	controllerName = "dnsnameresolver_controller"
+	controllerName       = "dnsnameresolver_controller"
 )
 
 var (
@@ -49,9 +48,8 @@ type reconciler struct {
 // NewUnmanaged creates and returns a controller that watches DNSNameResolver
 // objects. The controller re-resolves the DNS names which get added to the
 // status of the DNSNameResolver objects. It also removes IP addresses of DNS
-// names, whose TTLs have expired, from the status. This is an unmanaged
-// controller, which means that the manager does not start it.
-func NewUnmanaged(mgr manager.Manager, config Config) (controller.Controller, []cache.Cache, error) {
+// names, whose TTLs have expired, from the status.
+func New(mgr manager.Manager, config Config) (controller.Controller, error) {
 	// Create a new cache for tracking the DNSNameResolver resources in
 	// the DNSNameResolverNamespace.
 	dnsNameResolverCache, err := cache.New(mgr.GetConfig(), cache.Options{
@@ -61,7 +59,7 @@ func NewUnmanaged(mgr manager.Manager, config Config) (controller.Controller, []
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Create a new cache to track the EndpointSlices corresponding to the
@@ -76,26 +74,27 @@ func NewUnmanaged(mgr manager.Manager, config Config) (controller.Controller, []
 		}),
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Initialize the reconciler.
+	mgr.Add(dnsNameResolverCache)
+	mgr.Add(corednsEndpointsSliceCache)
+
 	reconciler := &reconciler{
 		dnsNameResolverCache: dnsNameResolverCache,
 		client:               mgr.GetClient(),
 		resolver:             NewResolver(corednsEndpointsSliceCache, config.DNSPort),
 	}
 
-	// Create an unmanaged controller using the reconciler.
-	c, err := controller.NewUnmanaged(controllerName, mgr, controller.Options{Reconciler: reconciler})
+	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: reconciler})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Watch for the DNSNameResolver resources using dnsNameResolverCache.
 	if err := c.Watch(source.Kind(dnsNameResolverCache, &ocpnetworkv1alpha1.DNSNameResolver{}),
 		&handler.EnqueueRequestForObject{}); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Watch for the CoreDNS pod EndpointSlices to keep corednsEndpointsSliceCache synced.
@@ -104,10 +103,10 @@ func NewUnmanaged(mgr manager.Manager, config Config) (controller.Controller, []
 		handler.EnqueueRequestsFromMapFunc(func(context.Context, client.Object) []reconcile.Request {
 			return nil
 		})); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return c, []cache.Cache{dnsNameResolverCache, corednsEndpointsSliceCache}, nil
+	return c, nil
 }
 
 // Reconcile expects request to refer to an DNSNameResolver resource, and will do all the work to

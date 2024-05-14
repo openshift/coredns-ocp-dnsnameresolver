@@ -26,7 +26,6 @@ import (
 	ocpnetworkv1alpha1 "github.com/openshift/api/network/v1alpha1"
 
 	"github.com/openshift/coredns-ocp-dnsnameresolver/operator/controller/dnsnameresolver"
-	dnsnameresolvercrd "github.com/openshift/coredns-ocp-dnsnameresolver/operator/controller/dnsnameresolver-crd"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +33,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -126,32 +124,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set up the DNSNameResolver controller. This controller is unmanaged by
-	// the manager. The reason why the controller is unmanaged is so that it
-	// doesn't get automatically started when the operator starts; we only
-	// want the controller to start if we need it. The dnsnameresolvercrd
-	// controller starts it and the caches after it creates the
-	// DNSNameResolver CRD.
-	dnsNameResolverController, dnsNameResolverControllerCaches, err :=
-		dnsnameresolver.NewUnmanaged(mgr, dnsnameresolver.Config{
-			OperandNamespace:         coreDNSNamespace,
-			ServiceName:              coreDNSServieName,
-			DNSPort:                  coreDNSPort,
-			DNSNameResolverNamespace: dnsNameResolverNamespace,
-		})
-	if err != nil {
+	// Set up the DNSNameResolver controller.
+	if _, err := dnsnameresolver.New(mgr, dnsnameresolver.Config{
+		OperandNamespace:         coreDNSNamespace,
+		ServiceName:              coreDNSServieName,
+		DNSPort:                  coreDNSPort,
+		DNSNameResolverNamespace: dnsNameResolverNamespace,
+	}); err != nil {
 		setupLog.Error(err, "failed to create dnsnameresolver controller")
 		os.Exit(1)
-	}
-
-	// Set up the dnsnameresolvercrd controller.
-	if _, err := dnsnameresolvercrd.New(mgr, dnsnameresolvercrd.Config{
-		DependentCaches: dnsNameResolverControllerCaches,
-		DependentControllers: []controller.Controller{
-			dnsNameResolverController,
-		},
-	}); err != nil {
-		setupLog.Error(err, "failed to create dnsnameresolvercrd controller")
 	}
 
 	//+kubebuilder:scaffold:builder

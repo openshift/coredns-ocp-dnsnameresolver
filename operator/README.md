@@ -24,7 +24,7 @@ if `make deploy` is used to deploy the operator:
 ## Getting Started
 
 ### Prerequisites
-- go version v1.19.0+
+- go version 1.21+
 - docker version 17.03+.
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
@@ -55,12 +55,12 @@ make deploy IMG=<some-registry>/operator:tag
 > **NOTE**: If you encounter RBAC errors, you may need to login as cluster-admin.
 
 ### To Uninstall
-```
 
 **Undeploy the operator from the cluster:**
 
 ```sh
 make undeploy
+```
 
 **Delete the APIs(CRDs) from the cluster:**
 
