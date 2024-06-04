@@ -232,6 +232,34 @@ func TestResolver(t *testing.T) {
 			expectedNumIPs:          []int{2, 2, 2, 1},
 			expectedOutputs:         []bool{true, true, true, true},
 		},
+		{
+			name: "Add a regular DNS name first with an IP address and with next lookup time past the current time," +
+				" then add the same regular DNS name again without any resolved address",
+			actions: []string{"Add", "Add"},
+			parameters: []interface{}{
+				&addParams{
+					dnsName: "www.example.com.",
+					resolvedAddresses: []networkv1alpha1.DNSNameResolverResolvedAddress{
+						{
+							IP:             "1.1.1.1",
+							TTLSeconds:     -5,
+							LastLookupTime: &v1.Time{Time: time.Now()},
+						},
+					},
+					matchesRegular: true,
+					objName:        "regular",
+				},
+				&addParams{
+					dnsName:        "www.example.com.",
+					matchesRegular: true,
+					objName:        "regular",
+				},
+			},
+			expectedNextDNSNames:    []string{"www.example.com.", "www.example.com."},
+			expectedNextLookupTimes: []time.Time{time.Now().Add(-5 * time.Second), time.Now().Add(defaultMaxTTL)},
+			expectedNumIPs:          []int{1, 0},
+			expectedOutputs:         []bool{true, true},
+		},
 	}
 
 	for _, tc := range tests {
@@ -275,6 +303,47 @@ func TestResolver(t *testing.T) {
 					}
 				}
 			}
+		})
+	}
+}
+
+func TestGetTimeTillNextLookup(t *testing.T) {
+	tests := []struct {
+		name                       string
+		dnsExists                  bool
+		remainingDuration          time.Duration
+		expectedTimeTillNextLookup time.Duration
+	}{
+		{
+			name:                       "DNS does not exist",
+			dnsExists:                  false,
+			remainingDuration:          0,
+			expectedTimeTillNextLookup: defaultMaxTTL,
+		},
+		{
+			name:                       "DNS exists and remaianing duration is greater than default max TTL",
+			dnsExists:                  true,
+			remainingDuration:          defaultMaxTTL + 1,
+			expectedTimeTillNextLookup: defaultMaxTTL,
+		},
+		{
+			name:                       "DNS exists and remaining duration is less than default max TTL",
+			dnsExists:                  true,
+			remainingDuration:          defaultMinTTL,
+			expectedTimeTillNextLookup: defaultMinTTL,
+		},
+		{
+			name:                       "DNS exists and remaining duration is not greater than 0",
+			dnsExists:                  true,
+			remainingDuration:          0,
+			expectedTimeTillNextLookup: 2 * defaultMinTTL,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			timeTillNextLookup := getTimeTillNextLookup(tc.dnsExists, tc.remainingDuration)
+			assert.Equal(t, tc.expectedTimeTillNextLookup, timeTillNextLookup)
 		})
 	}
 }
