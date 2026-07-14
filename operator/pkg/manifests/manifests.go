@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	DNSNameResolverCRDAsset = "assets/0000_70_dnsnameresolver_00-techpreview.crd.yaml"
+	DNSNameResolverCRDAsset = "assets/0000_70_dns_00_dnsnameresolvers.crd.yaml"
 )
 
 //go:embed assets
