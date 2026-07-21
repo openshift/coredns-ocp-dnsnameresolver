@@ -11,9 +11,9 @@ function verify_crd {
 }
 
 verify_crd \
-  "vendor/github.com/openshift/api/network/v1alpha1/0000_70_dnsnameresolver_00-techpreview.crd.yaml" \
-  "pkg/manifests/assets/0000_70_dnsnameresolver_00-techpreview.crd.yaml"
+  "vendor/github.com/openshift/api/network/v1alpha1/zz_generated.crd-manifests/0000_70_dns_00_dnsnameresolvers.crd.yaml" \
+  "pkg/manifests/assets/0000_70_dns_00_dnsnameresolvers.crd.yaml"
 
 verify_crd \
-  "vendor/github.com/openshift/api/network/v1alpha1/0000_70_dnsnameresolver_00-techpreview.crd.yaml" \
+  "vendor/github.com/openshift/api/network/v1alpha1/zz_generated.crd-manifests/0000_70_dns_00_dnsnameresolvers.crd.yaml" \
   "config/crd/bases/network.openshift.io.openshift.io_dnsnameresolvers.yaml"
